@@ -78,36 +78,51 @@ class Combiner:
 #    combiner.add(factors, True)
 
 combiners = {}
-options = Options()
-driver = webdriver.Chrome(options=options)
-identifier = "betfair"
-driver.get("https://www.betfair.com/sport/football")
-items = driver.find_elements_by_class_name("event-information")
-for item in items:
-    try:
-        names = item.find_elements_by_class_name("team-name")
-    except StaleElementReferenceException:
-        continue
-    key = tuple(names)
-    if key in combiners:
-        combiner = combiners[key]
-    for name in names:
-        print(name.text)
-    fields = item.find_elements_by_class_name("ui-runner-price")
-    skip = len(fields) - 3
-    fields = fields[skip:skip + 3]
-    prices = []
-    combiner = Combiner()
-    factors = []
-    for field in fields:
-        price = field.text.strip()
-        prices.append(price)
-        if price != "":
-            if price == "EVS":
-                factor = 2
-            else:
-                components = price.split("/")
-                factor = 1 + float(components[0]) / float(components[1])
-            factors.append(factor)
-    print(prices)
-    combiner.add(identifier, factors, True)
+analysers = []
+
+def add_analyser(analyser, url):
+    options = Options()
+    driver = webdriver.Chrome(options=options)
+    driver.get(url)
+    analysers.append((analyser, driver))
+
+def run_analysers():
+    global analysers
+    for analyser, driver in analysers:
+        analyser(driver)
+
+def betfair(driver):
+    global combiners
+    identifier = "betfair"
+    items = driver.find_elements_by_class_name("event-information")
+    for item in items:
+        try:
+            names = item.find_elements_by_class_name("team-name")
+        except StaleElementReferenceException:
+            continue
+        key = tuple(names)
+        if key in combiners:
+            combiner = combiners[key]
+        for name in names:
+            print(name.text)
+        fields = item.find_elements_by_class_name("ui-runner-price")
+        skip = len(fields) - 3
+        fields = fields[skip:skip + 3]
+        prices = []
+        combiner = Combiner()
+        factors = []
+        for field in fields:
+            price = field.text.strip()
+            prices.append(price)
+            if price != "":
+                if price == "EVS":
+                    factor = 2
+                else:
+                    components = price.split("/")
+                    factor = 1 + float(components[0]) / float(components[1])
+                factors.append(factor)
+        print(prices)
+        combiner.add(identifier, factors, True)
+
+add_analyser(betfair, "https://www.betfair.com/sport/football")
+run_analysers()
