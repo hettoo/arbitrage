@@ -4,6 +4,7 @@ import sys
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import StaleElementReferenceException
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -44,11 +45,11 @@ class Combiner:
 
     def add(self, identifier, factors, show = False):
         self.factors[identifier] = factors
-        self.update_best()
         if show:
             show_result(factors, arbitrage(factors))
 
     def show(self, value = 1):
+        self.update_best()
         if self.best:
             print(self.best_index)
             result = arbitrage(self.best)
@@ -83,7 +84,10 @@ identifier = "betfair"
 driver.get("https://www.betfair.com/sport/football")
 items = driver.find_elements_by_class_name("event-information")
 for item in items:
-    names = item.find_elements_by_class_name("team-name")
+    try:
+        names = item.find_elements_by_class_name("team-name")
+    except StaleElementReferenceException:
+        continue
     key = tuple(names)
     if key in combiners:
         combiner = combiners[key]
