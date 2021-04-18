@@ -33,6 +33,8 @@ class Combiner:
         self.factors = {}
 
     def update_best(self):
+        self.best = []
+        self.best_index = []
         for identifier, factors in self.factors.items():
             if self.best:
                 for i in range(len(self.best)):
@@ -40,7 +42,7 @@ class Combiner:
                         self.best[i] = factors[i]
                         self.best_index[i] = identifier
             else:
-                self.best = factors
+                self.best = factors.copy()
                 self.best_index = [identifier] * len(factors)
 
     def add(self, identifier, factors, show = False):
@@ -88,8 +90,9 @@ analysers = []
 
 def add_analyser(analyser, url):
     options = Options()
-    options.headless = True
+    #options.headless = True
     driver = webdriver.Chrome(options=options)
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     driver.get(url)
     analysers.append((analyser, driver))
 
@@ -103,9 +106,30 @@ def close_drivers():
     for _, driver in analysers:
         driver.close()
 
+def unify(a, b):
+    if a in b:
+        return b
+    if b in a:
+        return a
+    return None
+
+def adapt_key(key):
+    global combiners
+    left, right = key
+    for left_other, right_other in combiners:
+        unified_left = unify(left, left_other)
+        unified_right = unify(right, right_other)
+        if unified_left is not None and unified_right is not None:
+            unified = (unified_left, unified_right)
+            old = (left_other, right_other)
+            if old != unified:
+                combiners[unified] = combiners[old]
+                del combiners[old]
+            return unified
+    return key
+
 def betfair(driver):
     global combiners
-    identifier = "betfair"
     items = driver.find_elements_by_class_name("event-information")
     for item in items:
         try:
@@ -114,33 +138,75 @@ def betfair(driver):
             continue
         for i in range(len(names)):
             names[i] = names[i].text
-        key = tuple(names)
+        key = adapt_key(tuple(names))
         if key in combiners:
             combiner = combiners[key]
+        else:
+            combiner = Combiner()
+            combiners[key] = combiner
         fields = item.find_elements_by_class_name("ui-runner-price")
         skip = len(fields) - 3
         fields = fields[skip:skip + 3]
-        prices = []
-        combiner = Combiner()
-        combiners[key] = combiner
-        factors = []
-        for field in fields:
-            price = field.text.strip()
-            prices.append(price)
-            if price != "":
-                if price == "EVS":
-                    factor = 2
+        skip = False
+        if len(fields) == 3:
+            prices = []
+            factors = []
+            for field in fields:
+                price = field.text.strip()
+                prices.append(price)
+                if price == "":
+                    skip = True
                 else:
+                    if price == "EVS":
+                        factor = 2
+                    else:
+                        components = price.split("/")
+                        factor = 1 + float(components[0]) / float(components[1])
+                    factors.append(factor)
+            if not skip:
+                combiner.add("betfair", factors)
+
+def bet365(driver):
+    global combiners
+    items = driver.find_elements_by_class_name("ovm-Fixture")
+    print(len(items))
+
+def _888sport(driver):
+    global combiners
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CLASS_NAME, "bb-sport-event"))
+    )
+    items = driver.find_elements_by_class_name("bb-sport-event")
+    for item in items:
+        names = item.find_elements_by_class_name("bb-sport-event__detail-name")
+        for i in range(len(names)):
+            names[i] = names[i].text
+        key = adapt_key(tuple(names))
+        if key in combiners:
+            combiner = combiners[key]
+        else:
+            combiner = Combiner()
+            combiners[key] = combiner
+        fields = item.find_elements_by_class_name("bb-sport-event__selection")
+        if len(fields) == 3:
+            prices = []
+            factors = []
+            for field in fields:
+                price = field.text.strip()
+                prices.append(price)
+                if price != "":
                     components = price.split("/")
                     factor = 1 + float(components[0]) / float(components[1])
-                factors.append(factor)
-        combiner.add(identifier, factors)
+                    factors.append(factor)
+            combiner.add("888sport", factors)
 
 add_analyser(betfair, "https://www.betfair.com/sport/football")
+#add_analyser(bet365, "https://www.bet365.com/#/IP/B1")
+add_analyser(_888sport, "https://www.888sport.com/inplay/football/ips-2/")
 run_analysers()
 for key in combiners:
     gain = combiners[key].gain()
-    if gain is not None and gain > 0.94:
+    if gain is not None:
         print(key)
         combiners[key].show()
 close_drivers()
