@@ -17,7 +17,7 @@ def arbitrage(factors):
     total = sum(result)
     for i in range(len(result)):
         result[i] /= total
-    return result
+    return result, result[0] * factors[0]
 
 def show_result(factors, result, value = 1):
     valued = result.copy()
@@ -46,13 +46,19 @@ class Combiner:
     def add(self, identifier, factors, show = False):
         self.factors[identifier] = factors
         if show:
-            show_result(factors, arbitrage(factors))
+            show_result(factors, arbitrage(factors)[0])
+        self.update_best()
+
+    def gain(self):
+        if self.best:
+            _, gain = arbitrage(self.best)
+            return gain
+        return None
 
     def show(self, value = 1):
-        self.update_best()
         if self.best:
             print(self.best_index)
-            result = arbitrage(self.best)
+            result, gain = arbitrage(self.best)
             show_result(self.best, result, value)
 
 #if len(sys.argv) > 1:
@@ -82,6 +88,7 @@ analysers = []
 
 def add_analyser(analyser, url):
     options = Options()
+    options.headless = True
     driver = webdriver.Chrome(options=options)
     driver.get(url)
     analysers.append((analyser, driver))
@@ -90,6 +97,11 @@ def run_analysers():
     global analysers
     for analyser, driver in analysers:
         analyser(driver)
+
+def close_drivers():
+    global analysers
+    for _, driver in analysers:
+        driver.close()
 
 def betfair(driver):
     global combiners
@@ -100,16 +112,17 @@ def betfair(driver):
             names = item.find_elements_by_class_name("team-name")
         except StaleElementReferenceException:
             continue
+        for i in range(len(names)):
+            names[i] = names[i].text
         key = tuple(names)
         if key in combiners:
             combiner = combiners[key]
-        for name in names:
-            print(name.text)
         fields = item.find_elements_by_class_name("ui-runner-price")
         skip = len(fields) - 3
         fields = fields[skip:skip + 3]
         prices = []
         combiner = Combiner()
+        combiners[key] = combiner
         factors = []
         for field in fields:
             price = field.text.strip()
@@ -121,8 +134,13 @@ def betfair(driver):
                     components = price.split("/")
                     factor = 1 + float(components[0]) / float(components[1])
                 factors.append(factor)
-        print(prices)
-        combiner.add(identifier, factors, True)
+        combiner.add(identifier, factors)
 
 add_analyser(betfair, "https://www.betfair.com/sport/football")
 run_analysers()
+for key in combiners:
+    gain = combiners[key].gain()
+    if gain is not None and gain > 0.94:
+        print(key)
+        combiners[key].show()
+close_drivers()
