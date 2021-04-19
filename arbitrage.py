@@ -60,170 +60,160 @@ class Combiner:
 
     def show(self, value = 1):
         if self.best:
-            print(self.best_index)
+            if self.best_index[0] != "*":
+                print(self.best_index)
             result, gain = arbitrage(self.best)
             show_result(self.best, result, value)
 
-def add_analyser(analyser, url):
-    options = Options()
-    #options.headless = True
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    driver = webdriver.Chrome(options=options)
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined })"})
-    driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
-    driver.get(url)
-    analysers.append((analyser, driver))
-
-def run_analysers():
-    global analysers
-    for analyser, driver in analysers:
-        analyser(driver)
-
-def close_drivers():
-    global analysers
-    for _, driver in analysers:
-        driver.close()
-
-def unify(a, b):
-    if a in b:
-        return b
-    if b in a:
-        return a
-    return None
-
-def adapt_key(key):
-    global combiners
-    left, right = key
-    for left_other, right_other in combiners:
-        unified_left = unify(left, left_other)
-        unified_right = unify(right, right_other)
-        if unified_left is not None and unified_right is not None:
-            unified = (unified_left, unified_right)
-            old = (left_other, right_other)
-            if old != unified:
-                combiners[unified] = combiners[old]
-                del combiners[old]
-            return unified
-    return key
-
-def betfair(driver):
-    global combiners
-    items = driver.find_elements_by_class_name("event-information")
-    for item in items:
-        try:
-            names = item.find_elements_by_class_name("team-name")
-        except StaleElementReferenceException:
-            continue
-        for i in range(len(names)):
-            names[i] = names[i].text
-            split = names[i].split(" ")
-            if len(split) > 1 and split[0]:
-                split[0] = split[0][0]
-            names[i] = " ".join(split)
-        key = adapt_key(tuple(names))
-        if key in combiners:
-            combiner = combiners[key]
-        else:
-            combiner = Combiner()
-            combiners[key] = combiner
-        fields = item.find_elements_by_class_name("ui-runner-price")
-        skip = False
-        prices = []
-        factors = []
-        for field in fields:
-            price = field.text.strip()
-            prices.append(price)
-            if price == "":
-                skip = True
-            else:
-                if price == "EVS":
-                    factor = 2
-                else:
-                    components = price.split("/")
-                    factor = 1 + float(components[0]) / float(components[1])
-                factors.append(factor)
-        if not skip:
-            combiner.add("betfair", factors)
-
-def _888sport(driver):
-    global combiners
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CLASS_NAME, "bet-card"))
-    )
-    items = driver.find_elements_by_class_name("bet-card")
-    for item in items:
-        try:
-            names = item.find_elements_by_class_name("featured-matches-widget__event-competitor")
-        except StaleElementReferenceException:
-            continue
-        if names:
-            for i in range(len(names)):
-                names[i] = names[i].text
-                if ',' in names[i]:
-                    index = names[i].index(',')
-                    names[i] = names[i][index + 2:index + 3] + " " + names[i][:index]
-            key = adapt_key(tuple(names))
-            if key in combiners:
-                combiner = combiners[key]
-            else:
-                combiner = Combiner()
-                combiners[key] = combiner
-            fields = item.find_elements_by_class_name("bb-sport-event__selection")
-            prices = []
-            factors = []
-            for field in fields:
-                price = field.text.strip()
-                prices.append(price)
-                if price != "":
-                    components = price.split("/")
-                    factor = 1 + float(components[0]) / float(components[1])
-                    factors.append(factor)
-            combiner.add("888sport", factors)
-
-def bet365(driver):
-    global combiners
-
 combiners = {}
 analysers = []
+
+options = Options()
+options.add_experimental_option("excludeSwitches", ["enable-automation"])
+options.add_experimental_option('useAutomationExtension', False)
+driver = webdriver.Chrome(options=options)
+driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined })"})
+driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
+last_overview = "https://www.oddschecker.com/tennis"
+driver.get(last_overview)
 
 if len(sys.argv) > 1:
     value = float(sys.argv[1])
 else:
     value = 1
 combiner = Combiner()
+last_results = []
 while True:
     try:
-        line = input()
+        line = input("> ")
     except EOFError:
         combiner.show(value)
+        driver.close()
         quit()
-    items = line.split(" ")
-    identifier = items[0]
-    odds = items[1:]
-    factors = []
-    for odd in odds:
-        components = odd.split("/")
-        if len(components) == 1:
-            factor = float(components[0])
+    arguments = line.split(" ")
+    command = arguments[0]
+    if command == "calc":
+        odds = arguments[1:]
+        factors = []
+        for odd in odds:
+            components = odd.split("/")
+            if len(components) == 1:
+                factor = float(components[0])
+            else:
+                factor = 1 + float(components[0]) / float(components[1])
+            factors.append(factor)
+        combiner.add("*", factors, True)
+    elif command == "ov" or command == "overview":
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "match-on"))
+        )
+        items = driver.find_elements_by_class_name("match-on")
+        results = []
+        for item in items:
+            try:
+                fields = item.find_elements_by_tag_name("td")
+            except StaleElementReferenceException:
+                continue
+            if fields:
+                skip = False
+                factors = []
+                link = ""
+                for field in fields:
+                    c = field.get_attribute("class")
+                    if "basket-add" in c:
+                        components = field.text.split("/")
+                        if len(components) == 2:
+                            factor = 1 + float(components[0]) / float(components[1])
+                            factors.append(factor)
+                        else:
+                            skip = True
+                            break
+                    elif "link-right" in c:
+                        links = field.find_elements_by_tag_name("a")
+                        if links:
+                            link = links[0].get_attribute("href")
+                if not skip:
+                    result, gain = arbitrage(factors)
+                    if gain > 1:
+                        try:
+                            in_play = len(item.find_elements_by_class_name("in-play")) > 0
+                            names = item.find_elements_by_class_name("fixtures-bet-name")
+                        except StaleElementReferenceException:
+                            in_play = False
+                            names = []
+                        for i in range(len(names)):
+                            names[i] = names[i].text
+                        results.append((gain, in_play, names, factors, result, link))
+        results.sort(key = lambda x: (0 if x[1] else 1, x[0]))
+        first = True
+        i = len(results)
+        for gain, in_play, names, factors, result, _ in results:
+            if first:
+                first = False
+            else:
+                print()
+            print("#" + str(i))
+            if in_play:
+                print("IN PLAY")
+            print(names)
+            show_result(factors, result, value)
+            i -= 1
+        last_results = results
+        last_overview = driver.current_url
+    elif command == "det" or command == "details":
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "diff-row"))
+        )
+        header = driver.find_elements_by_css_selector(".eventTableHeader td")
+        bookies = []
+        for td in header:
+            if "bookie" in td.get_attribute("class"):
+                bookies.append(td.get_attribute("data-bk"))
+        items = driver.find_elements_by_class_name("diff-row")
+        factors = []
+        factor_bookies = []
+        skip = False
+        for item in items:
+            try:
+                fields = item.find_elements_by_tag_name("td")[1:]
+            except:
+                print("Failed to get row")
+                skip = True
+                break
+            best = None
+            bookie = None
+            for index, field in enumerate(fields):
+                text = field.find_elements_by_tag_name("p")
+                if text:
+                    text = text[0].text
+                    components = text.split("/")
+                    if len(components) == 1:
+                        factor = 1 + float(components[0])
+                    elif len(components) == 2:
+                        factor = 1 + float(components[0]) / float(components[1])
+                    else:
+                        print("Data error: " + text)
+                        skip = True
+                        break
+                    if best is None or factor > best:
+                        best = factor
+                        bookie = bookies[index]
+            if best is None:
+                skip = True
+                break
+            factors.append(best)
+            factor_bookies.append(bookie)
+        if not skip:
+            print(factor_bookies)
+            result, gain = arbitrage(factors)
+            show_result(factors, result, value)
+    elif command == "f" or command == "follow":
+        index = len(last_results) - int(arguments[1])
+        if index >= 0:
+            driver.get(last_results[index][5])
         else:
-            factor = 1 + float(components[0]) / float(components[1])
-        factors.append(factor)
-    combiner.add(identifier, factors, True)
-quit()
-
-add_analyser(betfair, "https://www.betfair.com/sport/tennis")
-add_analyser(_888sport, "https://www.888sport.com/tennis")
-#add_analyser(bet365, "https://www.bet365.com/#/AC/B13/C1/D50/E2/F163/")
-run_analysers()
-for key in combiners:
-    gain = combiners[key].gain()
-    if gain is not None:
-        print(key)
-        combiners[key].show()
-for key in combiners:
-    gain = combiners[key].gain()
-    if gain is not None and gain > 1:
-        print(key)
-        combiners[key].show()
-close_drivers()
+            print("No such result")
+    elif command == "back":
+        driver.get(last_overview)
+    else:
+        print("Unknown command: " + command)
