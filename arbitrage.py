@@ -23,6 +23,7 @@ def show_result(factors, result, value = 1):
     valued = result.copy()
     for i in range(len(valued)):
         valued[i] *= value
+    print(factors)
     print(valued)
     print(str((result[0] * factors[0] - 1) * 100) + "%")
 
@@ -63,36 +64,14 @@ class Combiner:
             result, gain = arbitrage(self.best)
             show_result(self.best, result, value)
 
-#if len(sys.argv) > 1:
-#    value = float(sys.argv[1])
-#else:
-#    value = 1
-#combiner = Combiner()
-#while True:
-#    try:
-#        line = input(str(combiner.n) + ": ")
-#    except EOFError:
-#        combiner.show(value)
-#        quit()
-#    odds = line.split(" ")
-#    factors = []
-#    for odd in odds:
-#        components = odd.split("/")
-#        if len(components) == 1:
-#            factor = float(components[0])
-#        else:
-#            factor = 1 + float(components[0]) / float(components[1])
-#        factors.append(factor)
-#    combiner.add(factors, True)
-
-combiners = {}
-analysers = []
-
 def add_analyser(analyser, url):
     options = Options()
     #options.headless = True
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
     driver = webdriver.Chrome(options=options)
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined })"})
+    driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
     driver.get(url)
     analysers.append((analyser, driver))
 
@@ -138,6 +117,10 @@ def betfair(driver):
             continue
         for i in range(len(names)):
             names[i] = names[i].text
+            split = names[i].split(" ")
+            if len(split) > 1 and split[0]:
+                split[0] = split[0][0]
+            names[i] = " ".join(split)
         key = adapt_key(tuple(names))
         if key in combiners:
             combiner = combiners[key]
@@ -145,50 +128,48 @@ def betfair(driver):
             combiner = Combiner()
             combiners[key] = combiner
         fields = item.find_elements_by_class_name("ui-runner-price")
-        skip = len(fields) - 3
-        fields = fields[skip:skip + 3]
         skip = False
-        if len(fields) == 3:
-            prices = []
-            factors = []
-            for field in fields:
-                price = field.text.strip()
-                prices.append(price)
-                if price == "":
-                    skip = True
+        prices = []
+        factors = []
+        for field in fields:
+            price = field.text.strip()
+            prices.append(price)
+            if price == "":
+                skip = True
+            else:
+                if price == "EVS":
+                    factor = 2
                 else:
-                    if price == "EVS":
-                        factor = 2
-                    else:
-                        components = price.split("/")
-                        factor = 1 + float(components[0]) / float(components[1])
-                    factors.append(factor)
-            if not skip:
-                combiner.add("betfair", factors)
-
-def bet365(driver):
-    global combiners
-    items = driver.find_elements_by_class_name("ovm-Fixture")
-    print(len(items))
+                    components = price.split("/")
+                    factor = 1 + float(components[0]) / float(components[1])
+                factors.append(factor)
+        if not skip:
+            combiner.add("betfair", factors)
 
 def _888sport(driver):
     global combiners
     WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CLASS_NAME, "bb-sport-event"))
+        EC.presence_of_element_located((By.CLASS_NAME, "bet-card"))
     )
-    items = driver.find_elements_by_class_name("bb-sport-event")
+    items = driver.find_elements_by_class_name("bet-card")
     for item in items:
-        names = item.find_elements_by_class_name("bb-sport-event__detail-name")
-        for i in range(len(names)):
-            names[i] = names[i].text
-        key = adapt_key(tuple(names))
-        if key in combiners:
-            combiner = combiners[key]
-        else:
-            combiner = Combiner()
-            combiners[key] = combiner
-        fields = item.find_elements_by_class_name("bb-sport-event__selection")
-        if len(fields) == 3:
+        try:
+            names = item.find_elements_by_class_name("featured-matches-widget__event-competitor")
+        except StaleElementReferenceException:
+            continue
+        if names:
+            for i in range(len(names)):
+                names[i] = names[i].text
+                if ',' in names[i]:
+                    index = names[i].index(',')
+                    names[i] = names[i][index + 2:index + 3] + " " + names[i][:index]
+            key = adapt_key(tuple(names))
+            if key in combiners:
+                combiner = combiners[key]
+            else:
+                combiner = Combiner()
+                combiners[key] = combiner
+            fields = item.find_elements_by_class_name("bb-sport-event__selection")
             prices = []
             factors = []
             for field in fields:
@@ -200,13 +181,49 @@ def _888sport(driver):
                     factors.append(factor)
             combiner.add("888sport", factors)
 
-add_analyser(betfair, "https://www.betfair.com/sport/football")
-#add_analyser(bet365, "https://www.bet365.com/#/IP/B1")
-add_analyser(_888sport, "https://www.888sport.com/inplay/football/ips-2/")
+def bet365(driver):
+    global combiners
+
+combiners = {}
+analysers = []
+
+if len(sys.argv) > 1:
+    value = float(sys.argv[1])
+else:
+    value = 1
+combiner = Combiner()
+while True:
+    try:
+        line = input()
+    except EOFError:
+        combiner.show(value)
+        quit()
+    items = line.split(" ")
+    identifier = items[0]
+    odds = items[1:]
+    factors = []
+    for odd in odds:
+        components = odd.split("/")
+        if len(components) == 1:
+            factor = float(components[0])
+        else:
+            factor = 1 + float(components[0]) / float(components[1])
+        factors.append(factor)
+    combiner.add(identifier, factors, True)
+quit()
+
+add_analyser(betfair, "https://www.betfair.com/sport/tennis")
+add_analyser(_888sport, "https://www.888sport.com/tennis")
+#add_analyser(bet365, "https://www.bet365.com/#/AC/B13/C1/D50/E2/F163/")
 run_analysers()
 for key in combiners:
     gain = combiners[key].gain()
     if gain is not None:
+        print(key)
+        combiners[key].show()
+for key in combiners:
+    gain = combiners[key].gain()
+    if gain is not None and gain > 1:
         print(key)
         combiners[key].show()
 close_drivers()
