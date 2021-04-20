@@ -77,20 +77,16 @@ driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.
 last_overview = "https://www.oddschecker.com/tennis"
 driver.get(last_overview)
 
-if len(sys.argv) > 1:
-    value = float(sys.argv[1])
-else:
-    value = 1
 combiner = Combiner()
 last_results = []
 last_factors = []
 last_distribution = []
 last_bookies = []
+exclude = []
 while True:
     try:
         line = input("> ")
     except EOFError:
-        combiner.show(value)
         driver.close()
         quit()
     arguments = line.split(" ")
@@ -107,9 +103,6 @@ while True:
             factors.append(factor)
         combiner.add("*", factors, True)
     elif command == "l" or command == "list":
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "match-on"))
-        )
         items = driver.find_elements_by_class_name("match-on")
         results = []
         for item in items:
@@ -148,26 +141,19 @@ while True:
                             names[i] = names[i].text
                         results.append((gain, in_play, names, factors, result, link))
         results.sort(key = lambda x: (0 if x[1] else 1, x[0]))
-        first = True
         i = len(results)
         for gain, in_play, names, factors, result, _ in results:
-            if first:
-                first = False
-            else:
+            if i != len(results):
                 print()
             print("#" + str(i))
             if in_play:
                 print("IN PLAY")
             print(names)
-            show_result(factors, result, value)
+            show_result(factors, result)
             i -= 1
         last_results = results
         last_overview = driver.current_url
     elif command == "d" or command == "details":
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "diff-row"))
-        )
-        header = driver.find_elements_by_css_selector(".eventTableHeader td")
         items = driver.find_elements_by_class_name("diff-row")
         factors = []
         factor_bookies = []
@@ -183,7 +169,7 @@ while True:
             best_bookie = None
             for field in fields:
                 bookie = field.get_attribute("data-bk")
-                if bookie is not None:
+                if bookie is not None and bookie not in exclude:
                     text = field.find_elements_by_tag_name("p")
                     if text:
                         text = text[0].text
@@ -208,7 +194,7 @@ while True:
         if not skip:
             print(factor_bookies)
             result, gain = arbitrage(factors)
-            show_result(factors, result, value)
+            show_result(factors, result)
             last_factors = factors
             last_distribution = result
             last_bookies = factor_bookies
@@ -220,6 +206,16 @@ while True:
             print("No such result")
     elif command == "b" or command == "back":
         driver.get(last_overview)
+        i = len(last_results)
+        for gain, in_play, names, factors, result, _ in last_results:
+            if i != len(last_results):
+                print()
+            print("#" + str(i))
+            if in_play:
+                print("IN PLAY")
+            print(names)
+            show_result(factors, result)
+            i -= 1
     elif command == "a" or command == "amount":
         if last_distribution:
             print(last_bookies)
@@ -250,5 +246,7 @@ while True:
                 results.append(result)
             print(results)
             print(str((min(gains) - 1) * 100) + "% to " + str((max(gains) - 1) * 100) + "%")
+    elif command == "e" or command == "exclude":
+        exclude = arguments[1:]
     else:
         print("Unknown command: " + command)
