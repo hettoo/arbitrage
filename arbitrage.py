@@ -27,47 +27,6 @@ def show_result(factors, result, value = 1):
     print(valued)
     print(str((result[0] * factors[0] - 1) * 100) + "%")
 
-class Combiner:
-    def __init__(self):
-        self.best_index = []
-        self.best = []
-        self.factors = {}
-
-    def update_best(self):
-        self.best = []
-        self.best_index = []
-        for identifier, factors in self.factors.items():
-            if self.best:
-                for i in range(len(self.best)):
-                    if factors[i] > self.best[i]:
-                        self.best[i] = factors[i]
-                        self.best_index[i] = identifier
-            else:
-                self.best = factors.copy()
-                self.best_index = [identifier] * len(factors)
-
-    def add(self, identifier, factors, show = False):
-        self.factors[identifier] = factors
-        if show:
-            show_result(factors, arbitrage(factors)[0])
-        self.update_best()
-
-    def gain(self):
-        if self.best:
-            _, gain = arbitrage(self.best)
-            return gain
-        return None
-
-    def show(self, value = 1):
-        if self.best:
-            if self.best_index[0] != "*":
-                print(self.best_index)
-            result, gain = arbitrage(self.best)
-            show_result(self.best, result, value)
-
-combiners = {}
-analysers = []
-
 options = Options()
 options.add_experimental_option("excludeSwitches", ["enable-automation"])
 options.add_experimental_option('useAutomationExtension', False)
@@ -77,7 +36,6 @@ driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.
 last_overview = "https://www.oddschecker.com/tennis"
 driver.get(last_overview)
 
-combiner = Combiner()
 last_results = []
 last_factors = []
 last_distribution = []
@@ -91,7 +49,7 @@ while True:
         quit()
     arguments = line.split(" ")
     command = arguments[0]
-    if command == "calc":
+    if command == "c" or command == "calc":
         odds = arguments[1:]
         factors = []
         for odd in odds:
@@ -101,7 +59,12 @@ while True:
             else:
                 factor = 1 + float(components[0]) / float(components[1])
             factors.append(factor)
-        combiner.add("*", factors, True)
+        result, gain = arbitrage(factors)
+        show_result(factors, result)
+        last_factors = factors
+        last_distribution = result
+        if len(last_bookies) != len(factors):
+            last_bookies = []
     elif command == "l" or command == "list":
         items = driver.find_elements_by_class_name("match-on")
         results = []
@@ -218,7 +181,9 @@ while True:
             i -= 1
     elif command == "a" or command == "amount":
         if last_distribution:
-            print(last_bookies)
+            if last_bookies:
+                print(last_bookies)
+            skip = False
             if len(arguments) == 2:
                 total = float(arguments[1])
             elif len(arguments) == 3 and int(arguments[1]) <= len(last_distribution):
@@ -227,10 +192,23 @@ while True:
                 print("Incorrect arguments")
                 skip = True
             if not skip:
-                result = last_distribution.copy()
-                for i in range(len(result)):
-                    result[i] = round(result[i] * total, 2)
-                print(result)
+                values = last_distribution.copy()
+                for i in range(len(values)):
+                    values[i] = round(values[i] * total, 2)
+                print(values)
+                for i in range(len(values)):
+                    values[i] = float(values[i])
+                if len(values) == len(last_factors):
+                    total = sum(values)
+                    print("Total: " + str(total))
+                    results = []
+                    gains = []
+                    for i in range(len(values)):
+                        result = round(values[i] * factors[i], 2)
+                        gains.append(result / total)
+                        results.append(result)
+                    print(results)
+                    print(str((min(gains) - 1) * 100) + "% to " + str((max(gains) - 1) * 100) + "%")
     elif command == "p" or command == "place":
         values = arguments[1:].copy()
         for i in range(len(values)):
