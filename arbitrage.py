@@ -83,6 +83,7 @@ else:
     value = 1
 combiner = Combiner()
 last_results = []
+last_factors = []
 last_distribution = []
 last_bookies = []
 while True:
@@ -208,6 +209,7 @@ while True:
             print(factor_bookies)
             result, gain = arbitrage(factors)
             show_result(factors, result, value)
+            last_factors = factors
             last_distribution = result
             last_bookies = factor_bookies
     elif command == "f" or command == "follow":
@@ -233,5 +235,20 @@ while True:
                 for i in range(len(result)):
                     result[i] = round(result[i] * total, 2)
                 print(result)
+    elif command == "p" or command == "place":
+        values = arguments[1:].copy()
+        for i in range(len(values)):
+            values[i] = float(values[i])
+        if len(values) == len(last_factors):
+            total = sum(values)
+            print("Total: " + str(total))
+            results = []
+            gains = []
+            for i in range(len(values)):
+                result = round(values[i] * factors[i], 2)
+                gains.append(result / total)
+                results.append(result)
+            print(results)
+            print(str((min(gains) - 1) * 100) + "% to " + str((max(gains) - 1) * 100) + "%")
     else:
         print("Unknown command: " + command)
