@@ -83,6 +83,8 @@ else:
     value = 1
 combiner = Combiner()
 last_results = []
+last_distribution = []
+last_bookies = []
 while True:
     try:
         line = input("> ")
@@ -165,10 +167,6 @@ while True:
             EC.presence_of_element_located((By.CLASS_NAME, "diff-row"))
         )
         header = driver.find_elements_by_css_selector(".eventTableHeader td")
-        bookies = []
-        for td in header:
-            if "bookie" in td.get_attribute("class"):
-                bookies.append(td.get_attribute("data-bk"))
         items = driver.find_elements_by_class_name("diff-row")
         factors = []
         factor_bookies = []
@@ -181,32 +179,37 @@ while True:
                 skip = True
                 break
             best = None
-            bookie = None
-            for index, field in enumerate(fields):
-                text = field.find_elements_by_tag_name("p")
-                if text:
-                    text = text[0].text
-                    components = text.split("/")
-                    if len(components) == 1:
-                        factor = 1 + float(components[0])
-                    elif len(components) == 2:
-                        factor = 1 + float(components[0]) / float(components[1])
-                    else:
-                        print("Data error: " + text)
-                        skip = True
-                        break
-                    if best is None or factor > best:
-                        best = factor
-                        bookie = bookies[index]
+            best_bookie = None
+            for field in fields:
+                bookie = field.get_attribute("data-bk")
+                if bookie is not None:
+                    text = field.find_elements_by_tag_name("p")
+                    if text:
+                        text = text[0].text
+                        if text != "SP":
+                            components = text.split("/")
+                            if len(components) == 1:
+                                factor = 1 + float(components[0])
+                            elif len(components) == 2:
+                                factor = 1 + float(components[0]) / float(components[1])
+                            else:
+                                print("Data error: " + text)
+                                skip = True
+                                break
+                            if best is None or factor > best:
+                                best = factor
+                                best_bookie = bookie
             if best is None:
                 skip = True
                 break
             factors.append(best)
-            factor_bookies.append(bookie)
+            factor_bookies.append(best_bookie)
         if not skip:
             print(factor_bookies)
             result, gain = arbitrage(factors)
             show_result(factors, result, value)
+            last_distribution = result
+            last_bookies = factor_bookies
     elif command == "f" or command == "follow":
         index = len(last_results) - int(arguments[1])
         if index >= 0:
@@ -215,5 +218,20 @@ while True:
             print("No such result")
     elif command == "back":
         driver.get(last_overview)
+    elif command == "amount":
+        if last_distribution:
+            print(last_bookies)
+            if len(arguments) == 2:
+                total = float(arguments[1])
+            elif len(arguments) == 3 and int(arguments[1]) <= len(last_distribution):
+                total = float(arguments[2]) / last_distribution[int(arguments[1]) - 1]
+            else:
+                print("Incorrect arguments")
+                skip = True
+            if not skip:
+                result = last_distribution.copy()
+                for i in range(len(result)):
+                    result[i] = round(result[i] * total, 2)
+                print(result)
     else:
         print("Unknown command: " + command)
