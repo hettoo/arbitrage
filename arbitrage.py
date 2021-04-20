@@ -105,7 +105,7 @@ while True:
                 factor = 1 + float(components[0]) / float(components[1])
             factors.append(factor)
         combiner.add("*", factors, True)
-    elif command == "ov" or command == "overview":
+    elif command == "l" or command == "list":
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CLASS_NAME, "match-on"))
         )
@@ -162,7 +162,7 @@ while True:
             i -= 1
         last_results = results
         last_overview = driver.current_url
-    elif command == "det" or command == "details":
+    elif command == "d" or command == "details":
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CLASS_NAME, "diff-row"))
         )
@@ -216,9 +216,9 @@ while True:
             driver.get(last_results[index][5])
         else:
             print("No such result")
-    elif command == "back":
+    elif command == "b" or command == "back":
         driver.get(last_overview)
-    elif command == "amount":
+    elif command == "a" or command == "amount":
         if last_distribution:
             print(last_bookies)
             if len(arguments) == 2:
