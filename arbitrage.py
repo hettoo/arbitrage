@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import sys
+import cchardet
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -136,22 +137,20 @@ while True:
             for field in fields:
                 bookie = field.get_attribute("data-bk")
                 if bookie is not None and bookie not in exclude:
-                    text = field.find_elements_by_tag_name("p")
-                    if text:
-                        text = text[0].text
-                        if text != "SP":
-                            components = text.split("/")
-                            if len(components) == 1:
-                                factor = 1 + float(components[0])
-                            elif len(components) == 2:
-                                factor = 1 + float(components[0]) / float(components[1])
-                            else:
-                                print("Data error: " + text)
-                                skip = True
-                                break
-                            if best is None or factor > best:
-                                best = factor
-                                best_bookie = bookie
+                    text = field.text
+                    if text and text != "SP":
+                        components = text.split("/")
+                        if len(components) == 1:
+                            factor = 1 + float(components[0])
+                        elif len(components) == 2:
+                            factor = 1 + float(components[0]) / float(components[1])
+                        else:
+                            print("Data error: " + text)
+                            skip = True
+                            break
+                        if best is None or factor > best:
+                            best = factor
+                            best_bookie = bookie
             if best is None:
                 skip = True
                 break
