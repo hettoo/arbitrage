@@ -66,43 +66,46 @@ while True:
         if len(last_bookies) != len(factors):
             last_bookies = []
     elif command == "l" or command == "list":
-        items = driver.find_elements_by_class_name("match-on")
+        fields = driver.find_elements_by_css_selector(".match-on td")
         results = []
-        for item in items:
-            try:
-                fields = item.find_elements_by_tag_name("td")
-            except StaleElementReferenceException:
-                continue
-            if fields:
-                skip = False
-                factors = []
-                link = ""
-                for field in fields:
-                    c = field.get_attribute("class")
-                    if "basket-add" in c:
-                        components = field.text.split("/")
-                        if len(components) == 2:
-                            factor = 1 + float(components[0]) / float(components[1])
-                            factors.append(factor)
-                        else:
-                            skip = True
-                            break
-                    elif "link-right" in c:
-                        links = field.find_elements_by_tag_name("a")
-                        if links:
-                            link = links[0].get_attribute("href")
+        skip = False
+        in_play = False
+        factors = []
+        names = ()
+        link = ""
+        started = False
+        for field in fields:
+            c = field.get_attribute("class")
+            if "all-odds-click" in c:
+                if "time" in c:
+                    in_play = len(field.find_elements_by_class_name("in-play")) > 0
+                else:
+                    names = field.find_elements_by_class_name("fixtures-bet-name")
+                    for i in range(len(names)):
+                        names[i] = names[i].text
+            elif "basket-add" in c and not skip:
+                started = True
+                components = field.text.split("/")
+                if len(components) == 2:
+                    factor = 1 + float(components[0]) / float(components[1])
+                    factors.append(factor)
+                else:
+                    skip = True
+            elif "link-right" in c:
                 if not skip:
+                    links = field.find_elements_by_tag_name("a")
+                    if links:
+                        link = links[0].get_attribute("href")
                     result, gain = arbitrage(factors)
                     if gain > 1:
-                        try:
-                            in_play = len(item.find_elements_by_class_name("in-play")) > 0
-                            names = item.find_elements_by_class_name("fixtures-bet-name")
-                        except StaleElementReferenceException:
-                            in_play = False
-                            names = []
-                        for i in range(len(names)):
-                            names[i] = names[i].text
                         results.append((gain, in_play, names, factors, result, link))
+                skip = False
+                in_play = False
+                factors = []
+                link = ""
+                started = False
+            elif started:
+                skip = True
         results.sort(key = lambda x: (0 if x[1] else 1, x[0]))
         i = len(results)
         for gain, in_play, names, factors, result, _ in results:
