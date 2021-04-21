@@ -28,7 +28,7 @@ def show_result(factors, result, only_gain = False):
             factors_display.append(round(factor, 3))
         distribution_display = []
         for x in result:
-            distribution_display.append(round(x, 4))
+            distribution_display.append(round(x, 3))
         print("Factors: " + str(factors_display))
         print("Distribution: " + str(distribution_display))
     print("Gain: " + str(round((result[0] * factors[0] - 1) * 100, 2)) + "%")
@@ -217,8 +217,8 @@ def cmd_list(arguments):
     global last_many
     global last_overview
     last_overview = driver.current_url
-    many = len(arguments) >= 1 and arguments[0] == "many"
-    check = len(arguments) >= 1 and arguments[-1] == "check"
+    many = "many" in arguments
+    check = "check" in arguments
     if many:
         results = list_many(check)
     else:
@@ -253,20 +253,20 @@ def show_values(values):
         names = []
         for i in range(len(values)):
             names.append("#" + str(i + 1))
-    for i in range(len(values)):
-        print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i] + ", " + str(round(last_factors[i], 4)))
     if len(values) == len(last_factors):
         total = sum(values)
-        print("Total: " + str(total))
         results = []
         gains = []
         for i in range(len(values)):
             result = round(values[i] * factors[i], 2)
             gains.append(result / total)
             results.append(result)
-        print("Results: " + str(results))
         min_gain = round((min(gains) - 1) * 100, 2)
         max_gain = round((max(gains) - 1) * 100, 2)
+        for i in range(len(values)):
+            print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i] + ", " + str(round(last_factors[i], 3)) + " -> " + str(round((gains[i] - 1) * 100, 2)) + "%")
+        print("Total: " + str(total))
+        print("Results: " + str(results))
         if min_gain == max_gain:
             print("Gain: " + str(min_gain) + "%")
         else:
@@ -321,6 +321,9 @@ while True:
         show_results()
     elif command == "a" or command == "amount":
         if last_distribution:
+            do_round = "round" in arguments[1:]
+            if do_round:
+                arguments.remove("round")
             skip = False
             if len(arguments) == 2:
                 total = float(arguments[1])
@@ -332,7 +335,7 @@ while True:
             if not skip:
                 values = last_distribution.copy()
                 for i in range(len(values)):
-                    values[i] = round(values[i] * total, 2)
+                    values[i] = round(values[i] * total, 0 if do_round else 2)
                 show_values(values)
     elif command == "p" or command == "place":
         values = arguments[1:].copy()
