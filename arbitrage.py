@@ -10,6 +10,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+import lxml.html
+
 def arbitrage(factors):
     result = []
     for i in range(len(factors)):
@@ -35,6 +37,10 @@ driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Obje
 driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
 last_overview = "https://www.oddschecker.com/tennis"
 driver.get(last_overview)
+
+def get_body():
+    global driver
+    return lxml.html.fromstring(driver.page_source)
 
 last_results = []
 last_factors = []
@@ -66,7 +72,8 @@ while True:
         if len(last_bookies) != len(factors):
             last_bookies = []
     elif command == "l" or command == "list":
-        fields = driver.find_elements_by_css_selector(".match-on td")
+        body = get_body()
+        fields = body.cssselect(".match-on td")
         results = []
         skip = False
         in_play = False
@@ -75,17 +82,19 @@ while True:
         link = ""
         started = False
         for field in fields:
-            c = field.get_attribute("class")
+            c = field.attrib.get("class")
+            if c is None:
+                c = ""
             if "all-odds-click" in c:
                 if "time" in c:
-                    in_play = len(field.find_elements_by_class_name("in-play")) > 0
+                    in_play = len(field.cssselect(".in-play")) > 0
                 else:
-                    names = field.find_elements_by_class_name("fixtures-bet-name")
+                    names = field.cssselect(".fixtures-bet-name")
                     for i in range(len(names)):
-                        names[i] = names[i].text
+                        names[i] = names[i].text_content()
             elif "basket-add" in c and not skip:
                 started = True
-                components = field.text.split("/")
+                components = field.text_content().split("/")
                 if len(components) == 2:
                     factor = 1 + float(components[0]) / float(components[1])
                     factors.append(factor)
@@ -93,12 +102,12 @@ while True:
                     skip = True
             elif "link-right" in c:
                 if not skip:
-                    links = field.find_elements_by_tag_name("a")
+                    links = field.cssselect("a")
                     if links:
-                        link = links[0].get_attribute("href")
+                        link = links[0].attrib.get("href")
                     result, gain = arbitrage(factors)
                     if gain > 1:
-                        results.append((gain, in_play, names, factors, result, link))
+                        results.append((gain, in_play, names, factors, result, "https://www.oddschecker.com/" + link))
                 skip = False
                 in_play = False
                 factors = []
@@ -120,13 +129,14 @@ while True:
         last_results = results
         last_overview = driver.current_url
     elif command == "d" or command == "details":
-        items = driver.find_elements_by_class_name("diff-row")
+        body = get_body()
+        items = body.cssselect(".diff-row")
         factors = []
         factor_bookies = []
         skip = False
         for item in items:
             try:
-                fields = item.find_elements_by_tag_name("td")[1:]
+                fields = item.cssselect("td")[1:]
             except:
                 print("Failed to get row")
                 skip = True
@@ -134,9 +144,9 @@ while True:
             best = None
             best_bookie = None
             for field in fields:
-                bookie = field.get_attribute("data-bk")
+                bookie = field.attrib.get("data-bk")
                 if bookie is not None and bookie not in exclude:
-                    text = field.text
+                    text = field.text_content()
                     if text and text != "SP":
                         components = text.split("/")
                         if len(components) == 1:
