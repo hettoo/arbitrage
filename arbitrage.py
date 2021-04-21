@@ -41,6 +41,7 @@ def get_body():
 
 last_results = []
 last_many = False
+last_names = []
 last_factors = []
 last_distribution = []
 last_bookies = []
@@ -49,6 +50,10 @@ exclude = []
 
 def get_details():
     body = get_body()
+    items = body.cssselect(".selTxt")
+    names = []
+    for item in items:
+        names.append(item.text_content())
     items = body.cssselect(".diff-row")
     factors = []
     factor_bookies = []
@@ -77,7 +82,7 @@ def get_details():
         factors.append(best)
         factor_bookies.append(best_bookie)
     result, gain = arbitrage(factors)
-    return factors, factor_bookies, result, gain
+    return names, factors, factor_bookies, result, gain
 
 def get_bookie_names():
     body = get_body()
@@ -132,7 +137,7 @@ def list_single(check, ignore_live = False):
                     submit = False
                     if check:
                         driver.get(link)
-                        factors, _, result, gain = get_details()
+                        _, factors, _, result, gain = get_details()
                         if gain > 1 and gain < 1.04:
                             submit = True
                     else:
@@ -209,10 +214,11 @@ def cmd_list(arguments):
     last_many = many
     show_results()
 
-def show_bookies():
+def show_bookies(short = True):
     global last_bookies
     global last_bookie_names
-    print(last_bookies)
+    if short:
+        print(last_bookies)
     relevant_names = {}
     for bookie in last_bookies:
         if bookie in last_bookie_names:
@@ -221,13 +227,20 @@ def show_bookies():
         print(relevant_names)
 
 def show_values(values):
+    global last_names
     global last_bookies
     global last_bookie_names
     global last_factors
     if last_bookies:
-        show_bookies()
+        show_bookies(False)
+    if last_names:
+        names = last_names
+    else:
+        names = []
+        for i in range(len(values)):
+            names.append("#" + str(i + 1))
     for i in range(len(values)):
-        print("Bet " + str(values[i]) + (" at " + last_bookies[i] if last_bookies else ""))
+        print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i])
     if len(values) == len(last_factors):
         total = sum(values)
         print("Total: " + str(total))
@@ -238,7 +251,12 @@ def show_values(values):
             gains.append(result / total)
             results.append(result)
         print("Results: " + str(results))
-        print("Gain: " + str((min(gains) - 1) * 100) + "% to " + str((max(gains) - 1) * 100) + "%")
+        min_gain = round((min(gains) - 1) * 100, 2)
+        max_gain = round((max(gains) - 1) * 100, 2)
+        if min_gain == max_gain:
+            print("Gain: " + str(min_gain) + "%")
+        else:
+            print("Gain: " + str(min_gain) + "% to " + str(max_gain) + "%")
 
 while True:
     try:
@@ -262,18 +280,20 @@ while True:
         show_result(factors, result)
         last_factors = factors
         last_distribution = result
-        if len(last_bookies) != len(factors):
+        if len(last_names) != len(factors):
+            last_names = []
             last_bookies = []
     elif command == "l" or command == "list":
         cmd_list(arguments[1:])
     elif command == "d" or command == "details":
         t = get_details()
         if t is not None:
-            factors, factor_bookies, result, gain = t
+            names, factors, factor_bookies, result, gain = t
             last_bookies = factor_bookies
             last_bookie_names = get_bookie_names()
             show_bookies()
             show_result(factors, result)
+            last_names = names
             last_factors = factors
             last_distribution = result
     elif command == "f" or command == "follow":
