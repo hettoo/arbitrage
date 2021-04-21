@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import sys
-import cchardet
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
