@@ -21,13 +21,10 @@ def arbitrage(factors):
         result[i] /= total
     return result, result[0] * factors[0]
 
-def show_result(factors, result, value = 1):
-    valued = result.copy()
-    for i in range(len(valued)):
-        valued[i] *= value
-    print(factors)
-    print(valued)
-    print(str((result[0] * factors[0] - 1) * 100) + "%")
+def show_result(factors, result):
+    print("Factors: " + str(factors))
+    print("Distribution: " + str(result))
+    print("Gain: " + str((result[0] * factors[0] - 1) * 100) + "%")
 
 options = Options()
 options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -88,7 +85,7 @@ def list_single():
                 if links:
                     link = links[0].attrib.get("href")
                 result, gain = arbitrage(factors)
-                if gain > 1:
+                if gain > 1 and gain < 1.04:
                     results.append((gain, in_play, names, factors, result, "https://www.oddschecker.com/" + link, title))
             skip = False
             in_play = False
@@ -115,6 +112,34 @@ def show_results():
         show_result(factors, result)
         i -= 1
 
+def list_many():
+    urls = [
+        "american-football",
+        "australian-rules",
+        "baseball",
+        "basketball",
+        "boxing",
+        "football/english/premier-league",
+        "football/english/championship",
+        "football/english/league-1",
+        "football/english/league-2",
+        "football/italy/serie-a",
+        "football/euro-2020",
+        "football/champions-league",
+        "handball",
+        "rugby-league",
+        "rugby-union",
+        "snooker/world-championship",
+        "tennis",
+        "ufc-mma",
+        "volleyball"
+        ]
+    results = []
+    for url in urls:
+        driver.get("https://www.oddschecker.com/" + url)
+        results += list_single()
+    return results
+
 def cmd_list(arguments):
     global last_results
     global last_many
@@ -122,31 +147,48 @@ def cmd_list(arguments):
     last_overview = driver.current_url
     many = len(arguments) > 0 and arguments[0] == "many"
     if many:
-        urls = [
-            "american-football",
-            "australian-rules",
-            "baseball",
-            "basketball",
-            "boxing",
-            "football",
-            "handball",
-            "rugby-league",
-            "rugby-union",
-            "snooker/world-championship",
-            "tennis",
-            "ufc-mma",
-            "volleyball"
-            ]
-        results = []
-        for url in urls:
-            driver.get("https://www.oddschecker.com/" + url)
-            results += list_single()
+        results = list_many()
     else:
         results = list_single()
     results.sort(key = lambda x: (0 if x[1] else 1, x[0]))
     last_results = results
     last_many = many
     show_results()
+
+def get_details():
+    body = get_body()
+    items = body.cssselect(".diff-row")
+    factors = []
+    factor_bookies = []
+    for item in items:
+        try:
+            fields = item.cssselect("td")[1:]
+        except:
+            print("Failed to get row")
+            return None
+        best = None
+        best_bookie = None
+        for field in fields:
+            bookie = field.attrib.get("data-bk")
+            if bookie is not None and bookie not in exclude:
+                text = field.text_content()
+                if text and text != "SP":
+                    components = text.split("/")
+                    if len(components) == 1:
+                        factor = 1 + float(components[0])
+                    elif len(components) == 2:
+                        factor = 1 + float(components[0]) / float(components[1])
+                    else:
+                        print("Data error: " + text)
+                        return None
+                    if best is None or factor > best:
+                        best = factor
+                        best_bookie = bookie
+        if best is None:
+            return None
+        factors.append(best)
+        factor_bookies.append(best_bookie)
+    return factors, factor_bookies
 
 while True:
     try:
@@ -175,43 +217,9 @@ while True:
     elif command == "l" or command == "list":
         cmd_list(arguments[1:])
     elif command == "d" or command == "details":
-        body = get_body()
-        items = body.cssselect(".diff-row")
-        factors = []
-        factor_bookies = []
-        skip = False
-        for item in items:
-            try:
-                fields = item.cssselect("td")[1:]
-            except:
-                print("Failed to get row")
-                skip = True
-                break
-            best = None
-            best_bookie = None
-            for field in fields:
-                bookie = field.attrib.get("data-bk")
-                if bookie is not None and bookie not in exclude:
-                    text = field.text_content()
-                    if text and text != "SP":
-                        components = text.split("/")
-                        if len(components) == 1:
-                            factor = 1 + float(components[0])
-                        elif len(components) == 2:
-                            factor = 1 + float(components[0]) / float(components[1])
-                        else:
-                            print("Data error: " + text)
-                            skip = True
-                            break
-                        if best is None or factor > best:
-                            best = factor
-                            best_bookie = bookie
-            if best is None:
-                skip = True
-                break
-            factors.append(best)
-            factor_bookies.append(best_bookie)
-        if not skip:
+        t = get_details()
+        if t is not None:
+            factors, factor_bookies = t
             print(factor_bookies)
             result, gain = arbitrage(factors)
             show_result(factors, result)
@@ -243,7 +251,7 @@ while True:
                 values = last_distribution.copy()
                 for i in range(len(values)):
                     values[i] = round(values[i] * total, 2)
-                print(values)
+                print("Amounts: " + str(values))
                 for i in range(len(values)):
                     values[i] = float(values[i])
                 if len(values) == len(last_factors):
@@ -255,7 +263,7 @@ while True:
                         result = round(values[i] * factors[i], 2)
                         gains.append(result / total)
                         results.append(result)
-                    print(results)
+                    print("Results: " + str(results))
                     print(str((min(gains) - 1) * 100) + "% to " + str((max(gains) - 1) * 100) + "%")
     elif command == "p" or command == "place":
         values = arguments[1:].copy()
