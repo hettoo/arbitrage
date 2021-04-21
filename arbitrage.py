@@ -44,6 +44,7 @@ last_many = False
 last_factors = []
 last_distribution = []
 last_bookies = []
+last_bookie_names = {}
 exclude = []
 
 def get_details():
@@ -81,7 +82,7 @@ def get_details():
 def get_bookie_names():
     body = get_body()
     names = {}
-    items = body.cssselect("bk-logo-click")
+    items = body.cssselect(".bk-logo-click")
     for item in items:
         names[item.attrib.get("data-bk")] = item.attrib.get("title")
     return names
@@ -128,11 +129,16 @@ def list_single(check, ignore_live = False):
                 result, gain = arbitrage(factors)
                 if gain > 1 and gain < 1.04 and (not ignore_live or not in_play):
                     link = "https://www.oddschecker.com/" + link
+                    submit = False
                     if check:
                         driver.get(link)
                         factors, _, result, gain = get_details()
                         if gain > 1 and gain < 1.04:
-                            results.append((gain, in_play, names, factors, result, link, title))
+                            submit = True
+                    else:
+                        submit = True
+                    if submit:
+                        results.append((gain, in_play, names, factors, result, link, title))
             skip = False
             in_play = False
             factors = []
@@ -172,6 +178,7 @@ def list_many(check):
         "football/italy/serie-a",
         "football/euro-2020",
         "football/champions-league",
+        "football/poland/ekstraklasa",
         "handball",
         "rugby-league",
         "rugby-union",
@@ -201,6 +208,32 @@ def cmd_list(arguments):
     last_results = results
     last_many = many
     show_results()
+
+def show_values(values):
+    global last_bookies
+    global last_bookie_names
+    global last_factors
+    if last_bookies:
+        print(last_bookies)
+        relevant_names = {}
+        for bookie in last_bookies:
+            if bookie in last_bookie_names:
+                relevant_names[bookie] = last_bookie_names[bookie]
+        if relevant_names:
+            print(relevant_names)
+    for i in range(len(values)):
+        print("Bet " + str(values[i]) + (" at " + last_bookies[i] if last_bookies else ""))
+    if len(values) == len(last_factors):
+        total = sum(values)
+        print("Total: " + str(total))
+        results = []
+        gains = []
+        for i in range(len(values)):
+            result = round(values[i] * factors[i], 2)
+            gains.append(result / total)
+            results.append(result)
+        print("Results: " + str(results))
+        print("Gain: " + str((min(gains) - 1) * 100) + "% to " + str((max(gains) - 1) * 100) + "%")
 
 while True:
     try:
@@ -237,6 +270,7 @@ while True:
             last_factors = factors
             last_distribution = result
             last_bookies = factor_bookies
+            last_bookie_names = get_bookie_names()
     elif command == "f" or command == "follow":
         index = len(last_results) - int(arguments[1])
         if index >= 0:
@@ -248,8 +282,6 @@ while True:
         show_results()
     elif command == "a" or command == "amount":
         if last_distribution:
-            if last_bookies:
-                print(last_bookies)
             skip = False
             if len(arguments) == 2:
                 total = float(arguments[1])
@@ -262,33 +294,13 @@ while True:
                 values = last_distribution.copy()
                 for i in range(len(values)):
                     values[i] = round(values[i] * total, 2)
-                print("Amounts: " + str(values))
-                if len(values) == len(last_factors):
-                    total = sum(values)
-                    print("Total: " + str(total))
-                    results = []
-                    gains = []
-                    for i in range(len(values)):
-                        result = round(values[i] * factors[i], 2)
-                        gains.append(result / total)
-                        results.append(result)
-                    print("Results: " + str(results))
-                    print("Gain: " + str((min(gains) - 1) * 100) + "% to " + str((max(gains) - 1) * 100) + "%")
+                show_values(values)
     elif command == "p" or command == "place":
         values = arguments[1:].copy()
         for i in range(len(values)):
             values[i] = float(values[i])
         if len(values) == len(last_factors):
-            total = sum(values)
-            print("Total: " + str(total))
-            results = []
-            gains = []
-            for i in range(len(values)):
-                result = round(values[i] * factors[i], 2)
-                gains.append(result / total)
-                results.append(result)
-            print("Results: " + str(results))
-            print("Gain: " + str((min(gains) - 1) * 100) + "% to " + str((max(gains) - 1) * 100) + "%")
+            show_values(values)
     elif command == "e" or command == "exclude":
         exclude = arguments[1:]
     else:
