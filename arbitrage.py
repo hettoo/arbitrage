@@ -31,7 +31,7 @@ def show_result(factors, result, only_gain = False):
             distribution_display.append(round(x, 4))
         print("Factors: " + str(factors_display))
         print("Distribution: " + str(distribution_display))
-    print("Gain: " + str((result[0] * factors[0] - 1) * 100) + "%")
+    print("Gain: " + str(round((result[0] * factors[0] - 1) * 100, 2)) + "%")
 
 options = Options()
 options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -254,7 +254,7 @@ def show_values(values):
         for i in range(len(values)):
             names.append("#" + str(i + 1))
     for i in range(len(values)):
-        print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i])
+        print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i] + ", " + str(round(last_factors[i], 4)))
     if len(values) == len(last_factors):
         total = sum(values)
         print("Total: " + str(total))
