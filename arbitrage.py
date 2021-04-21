@@ -167,11 +167,12 @@ def show_results():
     for gain, in_play, names, factors, result, _, title in last_results:
         if i != len(last_results):
             print()
-        print("#" + str(i))
+        header = "#" + str(i)
+        if last_many and title:
+            header += " -- " + title
+        print(header)
         if in_play:
             print("IN PLAY")
-        if last_many and title:
-            print(title)
         print(names)
         show_result(factors, result, True)
         i -= 1
