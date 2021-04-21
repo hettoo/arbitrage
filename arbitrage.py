@@ -21,9 +21,16 @@ def arbitrage(factors):
         result[i] /= total
     return result, result[0] * factors[0]
 
-def show_result(factors, result):
-    print("Factors: " + str(factors))
-    print("Distribution: " + str(result))
+def show_result(factors, result, only_gain = False):
+    if not only_gain:
+        factors_display = []
+        for factor in factors:
+            factors_display.append(round(factor, 3))
+        distribution_display = []
+        for x in result:
+            distribution_display.append(round(x, 4))
+        print("Factors: " + str(factors_display))
+        print("Distribution: " + str(distribution_display))
     print("Gain: " + str((result[0] * factors[0] - 1) * 100) + "%")
 
 options = Options()
@@ -166,7 +173,7 @@ def show_results():
         if last_many and title:
             print(title)
         print(names)
-        show_result(factors, result)
+        show_result(factors, result, True)
         i -= 1
 
 def list_many(check):
@@ -184,6 +191,13 @@ def list_many(check):
         "football/euro-2020",
         "football/champions-league",
         "football/poland/ekstraklasa",
+        "football/scottish/championship",
+        "football/scottish/fa-cup",
+        "football/germany/bundesliga",
+        "football/france/ligue-1",
+        "football/france/ligue-2",
+        "football/spain/la-liga-primera",
+        "football/portugal/primeira-liga",
         "handball",
         "rugby-league",
         "rugby-union",
