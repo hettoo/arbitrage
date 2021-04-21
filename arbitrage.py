@@ -43,6 +43,7 @@ def get_body():
     return lxml.html.fromstring(driver.page_source)
 
 last_results = []
+last_many = False
 last_factors = []
 last_distribution = []
 last_bookies = []
@@ -98,8 +99,25 @@ def list_single():
             skip = True
     return results
 
+def show_results():
+    global last_results
+    global last_many
+    i = len(last_results)
+    for gain, in_play, names, factors, result, _, title in last_results:
+        if i != len(last_results):
+            print()
+        print("#" + str(i))
+        if in_play:
+            print("IN PLAY")
+        if last_many and title:
+            print(title)
+        print(names)
+        show_result(factors, result)
+        i -= 1
+
 def cmd_list(arguments):
     global last_results
+    global last_many
     global last_overview
     last_overview = driver.current_url
     many = len(arguments) > 0 and arguments[0] == "many"
@@ -126,19 +144,9 @@ def cmd_list(arguments):
     else:
         results = list_single()
     results.sort(key = lambda x: (0 if x[1] else 1, x[0]))
-    i = len(results)
-    for gain, in_play, names, factors, result, _, title in results:
-        if i != len(results):
-            print()
-        print("#" + str(i))
-        if in_play:
-            print("IN PLAY")
-        if many and title:
-            print(title)
-        print(names)
-        show_result(factors, result)
-        i -= 1
     last_results = results
+    last_many = many
+    show_results()
 
 while True:
     try:
@@ -218,16 +226,7 @@ while True:
             print("No such result")
     elif command == "b" or command == "back":
         driver.get(last_overview)
-        i = len(last_results)
-        for gain, in_play, names, factors, result, _ in last_results:
-            if i != len(last_results):
-                print()
-            print("#" + str(i))
-            if in_play:
-                print("IN PLAY")
-            print(names)
-            show_result(factors, result)
-            i -= 1
+        show_results()
     elif command == "a" or command == "amount":
         if last_distribution:
             if last_bookies:
