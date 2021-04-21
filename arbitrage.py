@@ -47,6 +47,99 @@ last_factors = []
 last_distribution = []
 last_bookies = []
 exclude = []
+
+def list_single():
+    body = get_body()
+    results = []
+    skip = False
+    in_play = False
+    factors = []
+    names = ()
+    link = ""
+    started = False
+    title = ""
+    titles = body.cssselect("h1")
+    if titles:
+        title = titles[0].text_content()
+    fields = body.cssselect(".match-on td")
+    for field in fields:
+        c = field.attrib.get("class")
+        if c is None:
+            c = ""
+        if "all-odds-click" in c:
+            if "time" in c:
+                in_play = len(field.cssselect(".in-play")) > 0
+            else:
+                names = field.cssselect(".fixtures-bet-name")
+                for i in range(len(names)):
+                    names[i] = names[i].text_content()
+        elif "basket-add" in c and not skip:
+            started = True
+            components = field.text_content().split("/")
+            if len(components) == 2:
+                factor = 1 + float(components[0]) / float(components[1])
+                factors.append(factor)
+            else:
+                skip = True
+        elif "link-right" in c:
+            if not skip:
+                links = field.cssselect("a")
+                if links:
+                    link = links[0].attrib.get("href")
+                result, gain = arbitrage(factors)
+                if gain > 1:
+                    results.append((gain, in_play, names, factors, result, "https://www.oddschecker.com/" + link, title))
+            skip = False
+            in_play = False
+            factors = []
+            link = ""
+            started = False
+        elif started:
+            skip = True
+    return results
+
+def cmd_list(arguments):
+    global last_results
+    global last_overview
+    last_overview = driver.current_url
+    many = len(arguments) > 0 and arguments[0] == "many"
+    if many:
+        urls = [
+            "american-football",
+            "australian-rules",
+            "baseball",
+            "basketball",
+            "boxing",
+            "football",
+            "handball",
+            "rugby-league",
+            "rugby-union",
+            "snooker/world-championship",
+            "tennis",
+            "ufc-mma",
+            "volleyball"
+            ]
+        results = []
+        for url in urls:
+            driver.get("https://www.oddschecker.com/" + url)
+            results += list_single()
+    else:
+        results = list_single()
+    results.sort(key = lambda x: (0 if x[1] else 1, x[0]))
+    i = len(results)
+    for gain, in_play, names, factors, result, _, title in results:
+        if i != len(results):
+            print()
+        print("#" + str(i))
+        if in_play:
+            print("IN PLAY")
+        if many and title:
+            print(title)
+        print(names)
+        show_result(factors, result)
+        i -= 1
+    last_results = results
+
 while True:
     try:
         line = input("> ")
@@ -72,62 +165,7 @@ while True:
         if len(last_bookies) != len(factors):
             last_bookies = []
     elif command == "l" or command == "list":
-        body = get_body()
-        fields = body.cssselect(".match-on td")
-        results = []
-        skip = False
-        in_play = False
-        factors = []
-        names = ()
-        link = ""
-        started = False
-        for field in fields:
-            c = field.attrib.get("class")
-            if c is None:
-                c = ""
-            if "all-odds-click" in c:
-                if "time" in c:
-                    in_play = len(field.cssselect(".in-play")) > 0
-                else:
-                    names = field.cssselect(".fixtures-bet-name")
-                    for i in range(len(names)):
-                        names[i] = names[i].text_content()
-            elif "basket-add" in c and not skip:
-                started = True
-                components = field.text_content().split("/")
-                if len(components) == 2:
-                    factor = 1 + float(components[0]) / float(components[1])
-                    factors.append(factor)
-                else:
-                    skip = True
-            elif "link-right" in c:
-                if not skip:
-                    links = field.cssselect("a")
-                    if links:
-                        link = links[0].attrib.get("href")
-                    result, gain = arbitrage(factors)
-                    if gain > 1:
-                        results.append((gain, in_play, names, factors, result, "https://www.oddschecker.com/" + link))
-                skip = False
-                in_play = False
-                factors = []
-                link = ""
-                started = False
-            elif started:
-                skip = True
-        results.sort(key = lambda x: (0 if x[1] else 1, x[0]))
-        i = len(results)
-        for gain, in_play, names, factors, result, _ in results:
-            if i != len(results):
-                print()
-            print("#" + str(i))
-            if in_play:
-                print("IN PLAY")
-            print(names)
-            show_result(factors, result)
-            i -= 1
-        last_results = results
-        last_overview = driver.current_url
+        cmd_list(arguments[1:])
     elif command == "d" or command == "details":
         body = get_body()
         items = body.cssselect(".diff-row")
