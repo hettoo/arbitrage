@@ -209,18 +209,23 @@ def cmd_list(arguments):
     last_many = many
     show_results()
 
+def show_bookies():
+    global last_bookies
+    global last_bookie_names
+    print(last_bookies)
+    relevant_names = {}
+    for bookie in last_bookies:
+        if bookie in last_bookie_names:
+            relevant_names[bookie] = last_bookie_names[bookie]
+    if relevant_names:
+        print(relevant_names)
+
 def show_values(values):
     global last_bookies
     global last_bookie_names
     global last_factors
     if last_bookies:
-        print(last_bookies)
-        relevant_names = {}
-        for bookie in last_bookies:
-            if bookie in last_bookie_names:
-                relevant_names[bookie] = last_bookie_names[bookie]
-        if relevant_names:
-            print(relevant_names)
+        show_bookies()
     for i in range(len(values)):
         print("Bet " + str(values[i]) + (" at " + last_bookies[i] if last_bookies else ""))
     if len(values) == len(last_factors):
@@ -265,12 +270,12 @@ while True:
         t = get_details()
         if t is not None:
             factors, factor_bookies, result, gain = t
-            print(factor_bookies)
+            last_bookies = factor_bookies
+            last_bookie_names = get_bookie_names()
+            show_bookies()
             show_result(factors, result)
             last_factors = factors
             last_distribution = result
-            last_bookies = factor_bookies
-            last_bookie_names = get_bookie_names()
     elif command == "f" or command == "follow":
         index = len(last_results) - int(arguments[1])
         if index >= 0:
