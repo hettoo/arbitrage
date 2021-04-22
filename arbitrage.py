@@ -89,39 +89,51 @@ last_results = []
 last_many = False
 last_names = []
 last_factors = []
+last_factor_texts = []
 last_distribution = []
 last_bookies = []
 last_bookie_names = {}
 exclude = []
 
+def parse_factor(text):
+    components = text.split("/")
+    if len(components) == 1:
+        factor = 1 + float(components[0])
+        text += "/1"
+    elif len(components) == 2:
+        factor = 1 + float(components[0]) / float(components[1])
+    else:
+        return None, text
+    return factor, text
+
 def get_details():
     body = get_body()
     items = body.cssselect(".diff-row")
     factors = []
+    factor_texts = []
     factor_bookies = []
     for item in items:
         fields = item.cssselect("td")[1:]
         best = None
+        best_text = None
         best_bookie = None
         for field in fields:
             bookie = field.attrib.get("data-bk")
             if bookie is not None and bookie not in exclude:
                 text = field.text_content()
                 if text and text != "SP":
-                    components = text.split("/")
-                    if len(components) == 1:
-                        factor = 1 + float(components[0])
-                    elif len(components) == 2:
-                        factor = 1 + float(components[0]) / float(components[1])
-                    else:
-                        print("Data error: " + text)
+                    factor, text = parse_factor(text)
+                    if factor is None:
+                        print("Factor parsing error: " + text)
                         return None
                     if best is None or factor > best:
                         best = factor
+                        best_text = text
                         best_bookie = bookie
         if best is None:
             return None
         factors.append(best)
+        factor_texts.append(best_text)
         factor_bookies.append(best_bookie)
     result, gain = arbitrage(factors)
     date = body.cssselect(".event .date")
@@ -133,7 +145,7 @@ def get_details():
     names = []
     for item in items:
         names.append(item.text_content())
-    return date, names, factors, factor_bookies, result, gain
+    return date, names, factors, factor_texts, factor_bookies, result, gain
 
 def get_bookie_names():
     body = get_body()
@@ -187,7 +199,7 @@ def list_single(check, ignore_live = False):
                     submit = False
                     if check:
                         navigate(link)
-                        date, _, factors, _, result, gain = get_details()
+                        date, _, factors, _, _, result, gain = get_details()
                         if gain > 1 and gain < 1.04:
                             submit = True
                     else:
@@ -211,9 +223,9 @@ def show_results():
     for date, gain, in_play, names, factors, result, _, title in last_results:
         if i != len(last_results):
             print()
-        header = "#" + str(i)
+        header = "#" + str(i) + " -- (" + str(len(factors)) + ")"
         if last_many and title:
-            header += " -- " + title
+            header += " " + title
         if date is not None:
             header += " | " + date
         print(header)
@@ -291,7 +303,7 @@ def monitor():
                 else:
                     print()
                 print(link)
-                print(item[0])
+                print("(" + str(len(item[5])) + ") " + item[0])
                 print(str(round((item[1] - 1) * 100, 2)) + "%")
 
 def cmd_list(arguments):
@@ -348,7 +360,7 @@ def show_values(values):
         gains = []
         expected = 0
         for i in range(len(values)):
-            result = round(values[i] * factors[i], 2)
+            result = round(values[i] * last_factors[i], 2)
             gain = result / total
             gains.append(gain)
             expected += gain * last_distribution[i]
@@ -357,12 +369,19 @@ def show_values(values):
         max_gain = round((max(gains) - 1) * 100, 2)
         for i in range(len(values)):
             print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i] + ",")
-            print("  return " + str(round(last_factors[i], 3)) + " -> " + str(results[i]) + " (" + str(round((gains[i] - 1) * 100, 2)) + "% @ " + str(round(last_distribution[i] * 100, 2)) + "%)")
-        print("Total: " + str(round(total, 2)))
+            print("  return " + str(round(last_factors[i], 3)) + " (" + last_factor_texts[i] + ") -> " + str(results[i]) + " (" + str(round((gains[i] - 1) * 100, 2)) + "% @ " + str(round(last_distribution[i] * 100, 2)) + "%)")
+        print("Total bet value: " + str(round(total, 2)))
         if min_gain == max_gain:
             print("Gain: " + str(min_gain) + "%")
         else:
             print("Gain: " + str(min_gain) + "% to " + str(max_gain) + "%, expected " + str(round((expected - 1) * 100, 2)) + "%")
+
+def show_amount(total, do_round = False):
+    global last_distribution
+    values = last_distribution.copy()
+    for i in range(len(values)):
+        values[i] = round(values[i] * total, 0 if do_round else 2)
+    show_values(values)
 
 while True:
     try:
@@ -375,19 +394,16 @@ while True:
     command = arguments[0]
     if command == "c" or command == "calc":
         odds = arguments[1:]
-        factors = []
+        last_factors = []
+        last_factor_texts = []
         for odd in odds:
-            components = odd.split("/")
-            if len(components) == 1:
-                factor = float(components[0])
-            else:
-                factor = 1 + float(components[0]) / float(components[1])
-            factors.append(factor)
-        result, gain = arbitrage(factors)
-        show_result(factors, result)
-        last_factors = factors
+            factor, factor_text = parse_factor(odd)
+            last_factors.append(factor)
+            last_factor_texts.append(factor_text)
+        result, gain = arbitrage(last_factors)
+        show_result(last_factors, result)
         last_distribution = result
-        if len(last_names) != len(factors):
+        if len(last_names) != len(last_factors):
             last_names = []
             last_bookies = []
     elif command == "l" or command == "list":
@@ -397,7 +413,7 @@ while True:
     elif command == "d" or command == "details":
         t = get_details()
         if t is not None:
-            date, names, factors, factor_bookies, result, gain = t
+            date, names, factors, factor_texts, factor_bookies, result, gain = t
             if date is not None:
                 print(date)
             last_bookies = factor_bookies
@@ -406,11 +422,25 @@ while True:
             show_result(factors, result)
             last_names = names
             last_factors = factors
+            last_factor_texts = factor_texts
             last_distribution = result
     elif command == "f" or command == "follow":
         index = len(last_results) - int(arguments[1])
         if index >= 0:
             navigate(last_results[index][6])
+            t = get_details()
+            if t is not None:
+                date, names, factors, factor_texts, factor_bookies, result, gain = t
+                if date is not None:
+                    print(date)
+                last_bookies = factor_bookies
+                last_bookie_names = get_bookie_names()
+                last_names = names
+                last_factors = factors
+                last_factor_texts = factor_texts
+                last_distribution = result
+            if last_distribution:
+                show_amount(1000)
         else:
             print("No such result")
     elif command == "b" or command == "back":
@@ -424,7 +454,9 @@ while True:
             if do_round:
                 arguments.remove("round")
             skip = False
-            if len(arguments) == 2:
+            if len(arguments) == 1:
+                total = 1000
+            elif len(arguments) == 2:
                 total = float(arguments[1])
             elif len(arguments) == 3 and int(arguments[1]) <= len(last_distribution):
                 total = float(arguments[2]) / last_distribution[int(arguments[1]) - 1]
@@ -432,10 +464,7 @@ while True:
                 print("Incorrect arguments")
                 skip = True
             if not skip:
-                values = last_distribution.copy()
-                for i in range(len(values)):
-                    values[i] = round(values[i] * total, 0 if do_round else 2)
-                show_values(values)
+                show_amount(total, do_round)
     elif command == "p" or command == "place":
         values = arguments[1:].copy()
         for i in range(len(values)):
@@ -452,5 +481,10 @@ while True:
         create_driver(True)
     elif command == "g" or command == "go":
         navigate(" ".join(arguments[1:]))
+    elif command == "u" or command == "url":
+        if driver is None:
+            print(needs_load)
+        else:
+            print(driver.current_url)
     else:
         print("Unknown command: " + command)
