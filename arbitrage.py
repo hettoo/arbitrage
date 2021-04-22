@@ -135,6 +135,8 @@ def get_details():
         factors.append(best)
         factor_texts.append(best_text)
         factor_bookies.append(best_bookie)
+    if not factors:
+        return None
     result, gain = arbitrage(factors)
     date = body.cssselect(".event .date")
     if date:
@@ -180,6 +182,7 @@ def list_single(check, ignore_live = False):
                 names = field.cssselect(".fixtures-bet-name")
                 for i in range(len(names)):
                     names[i] = names[i].text_content()
+                names = tuple(names)
         elif "basket-add" in c and not skip:
             started = True
             components = field.text_content().split("/")
@@ -194,14 +197,16 @@ def list_single(check, ignore_live = False):
                 if links:
                     link = links[0].attrib.get("href")
                 result, gain = arbitrage(factors)
-                if gain > 1 and gain < 1.04 and (not ignore_live or not in_play):
+                if gain > 1 and gain < 1.05 and (not ignore_live or not in_play):
                     link = "https://www.oddschecker.com" + link
                     submit = False
                     if check:
                         navigate(link)
-                        date, _, factors, _, _, result, gain = get_details()
-                        if gain > 1 and gain < 1.04:
-                            submit = True
+                        t = get_details()
+                        if t is not None:
+                            date, _, factors, _, _, result, gain = t
+                            if gain > 1 and gain < 1.05:
+                                submit = True
                     else:
                         submit = True
                         date = None
@@ -331,14 +336,14 @@ def cmd_list(arguments):
 def show_bookies(short = True):
     global last_bookies
     global last_bookie_names
-    if short:
-        print(last_bookies)
     relevant_names = {}
     for bookie in last_bookies:
         if bookie in last_bookie_names:
             relevant_names[bookie] = last_bookie_names[bookie]
     if relevant_names:
         print(relevant_names)
+    if short:
+        print(last_bookies)
 
 def show_values(values):
     global last_names
