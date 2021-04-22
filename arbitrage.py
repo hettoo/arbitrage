@@ -242,13 +242,14 @@ def show_results():
         show_result(factors, result, True)
         i -= 1
 
-def list_many(check, sleep = 0):
+def list_many(check, monitor = False):
     urls = [
         "american-football",
         "australian-rules",
         "baseball",
         "basketball",
         "boxing",
+        "football",
         "football/english/premier-league",
         "football/english/championship",
         "football/english/league-1",
@@ -283,35 +284,38 @@ def list_many(check, sleep = 0):
         "ufc-mma",
         "volleyball"
         ]
-    results = []
-    for url in urls:
-        navigate("https://www.oddschecker.com/" + url)
-        results += list_single(check, True)
-        if sleep > 0:
-            time.sleep(sleep)
-    return results
-
-def monitor():
-    global last_results
-    global driver
-    create_driver(True)
+    if monitor:
+        create_driver(True)
+        results = last_results
+    else:
+        results = []
     lookup = set([])
-    for _, _, _, _, _, _, link, _ in last_results:
+    for _, _, _, _, _, _, link, _ in results:
         lookup.add(link)
+    restart = True
     first = True
-    while True:
-        new = list_many(True, 10)
-        for item in new:
-            link = item[6]
-            if link not in lookup:
-                lookup.add(link)
-                if first:
-                    first = False
-                else:
-                    print()
-                print(link)
-                print("(" + str(len(item[5])) + ") " + item[0])
-                print(str(round((item[1] - 1) * 100, 2)) + "%")
+    while restart:
+        for url in urls:
+            navigate("https://www.oddschecker.com/" + url)
+            new_results = list_single(check, True)
+            for item in new_results:
+                link = item[6]
+                if link not in lookup:
+                    lookup.add(link)
+                    results.append(item)
+                    if monitor:
+                        if first:
+                            first = False
+                        else:
+                            print()
+                        print(link)
+                        print("(" + str(len(item[5])) + ") " + item[0])
+                        print(str(round((item[1] - 1) * 100, 2)) + "%")
+            if monitor:
+                time.sleep(10)
+            else:
+                restart = False
+    return results
 
 def cmd_list(arguments):
     global last_results
@@ -416,7 +420,7 @@ while True:
     elif command == "l" or command == "list":
         cmd_list(arguments[1:])
     elif command == "m" or command == "monitor":
-        monitor()
+        list_many(True, True)
     elif command == "d" or command == "details":
         t = get_details()
         if t is not None:
