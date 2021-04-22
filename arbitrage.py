@@ -140,7 +140,7 @@ def list_single(check, ignore_live = False):
                     link = links[0].attrib.get("href")
                 result, gain = arbitrage(factors)
                 if gain > 1 and gain < 1.04 and (not ignore_live or not in_play):
-                    link = "https://www.oddschecker.com/" + link
+                    link = "https://www.oddschecker.com" + link
                     submit = False
                     if check:
                         driver.get(link)
@@ -223,6 +223,25 @@ def list_many(check):
         driver.get("https://www.oddschecker.com/" + url)
         results += list_single(check, True)
     return results
+
+def monitor():
+    global last_results
+    lookup = set([])
+    for _, _, _, _, _, link, _ in last_results:
+        lookup.add(link)
+    first = True
+    while True:
+        new = list_many(True)
+        for item in new:
+            link = item[5]
+            if link not in lookup:
+                lookup.add(link)
+                if first:
+                    first = False
+                else:
+                    print()
+                print(link)
+                print(str(round((item[0] - 1) * 100, 2)) + "%")
 
 def cmd_list(arguments):
     global last_results
@@ -311,6 +330,8 @@ while True:
             last_bookies = []
     elif command == "l" or command == "list":
         cmd_list(arguments[1:])
+    elif command == "m" or command == "monitor":
+        monitor()
     elif command == "d" or command == "details":
         t = get_details()
         if t is not None:
