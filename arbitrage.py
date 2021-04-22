@@ -158,7 +158,7 @@ def get_bookie_names():
     return names
 
 def list_single(check, ignore_live = False):
-    min_gain = 1.005
+    min_gain = 1.01
     max_gain = 1.045
     body = get_body()
     results = []
@@ -312,7 +312,7 @@ def list_many(check, monitor = False):
                         print("(" + str(len(item[5])) + ") " + item[0])
                         print(str(round((item[1] - 1) * 100, 2)) + "%")
             if monitor:
-                time.sleep(10)
+                time.sleep(15)
             else:
                 restart = False
     return results
