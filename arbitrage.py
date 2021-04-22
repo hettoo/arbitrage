@@ -414,7 +414,9 @@ while True:
         else:
             print("No such result")
     elif command == "b" or command == "back":
-        navigate(last_overview)
+        needs_load = last_overview
+        if window:
+            check_load()
         show_results()
     elif command == "a" or command == "amount":
         if last_distribution:
