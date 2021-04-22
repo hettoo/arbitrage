@@ -300,6 +300,7 @@ def show_values(values):
     global last_bookies
     global last_bookie_names
     global last_factors
+    global last_distribution
     if last_bookies:
         show_bookies(False)
     if last_names:
@@ -312,9 +313,12 @@ def show_values(values):
         total = sum(values)
         results = []
         gains = []
+        expected = 0
         for i in range(len(values)):
             result = round(values[i] * factors[i], 2)
-            gains.append(result / total)
+            gain = result / total
+            gains.append(gain)
+            expected += gain * last_distribution[i]
             results.append(result)
         min_gain = round((min(gains) - 1) * 100, 2)
         max_gain = round((max(gains) - 1) * 100, 2)
@@ -325,7 +329,7 @@ def show_values(values):
         if min_gain == max_gain:
             print("Gain:    " + str(min_gain) + "%")
         else:
-            print("Gain:    " + str(min_gain) + "% to " + str(max_gain) + "%")
+            print("Gain:    " + str(min_gain) + "% to " + str(max_gain) + "%, expected " + str(round((expected - 1) * 100, 2)) + "%")
 
 while True:
     try:
