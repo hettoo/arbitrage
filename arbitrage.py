@@ -334,13 +334,13 @@ def show_values(values):
         min_gain = round((min(gains) - 1) * 100, 2)
         max_gain = round((max(gains) - 1) * 100, 2)
         for i in range(len(values)):
-            print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i] + ", " + str(round(last_factors[i], 3)) + " -> " + str(round((gains[i] - 1) * 100, 2)) + "% @ " + str(round(last_distribution[i] * 100, 2)) + "%")
-        print("Total:   " + str(round(total, 2)))
-        print("Results: " + str(results))
+            print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i] + ",")
+            print("  return " + str(round(last_factors[i], 3)) + " -> " + str(results[i]) + " (" + str(round((gains[i] - 1) * 100, 2)) + "% @ " + str(round(last_distribution[i] * 100, 2)) + "%)")
+        print("Total: " + str(round(total, 2)))
         if min_gain == max_gain:
-            print("Gain:    " + str(min_gain) + "%")
+            print("Gain: " + str(min_gain) + "%")
         else:
-            print("Gain:    " + str(min_gain) + "% to " + str(max_gain) + "%, expected " + str(round((expected - 1) * 100, 2)) + "%")
+            print("Gain: " + str(min_gain) + "% to " + str(max_gain) + "%, expected " + str(round((expected - 1) * 100, 2)) + "%")
 
 while True:
     try:
