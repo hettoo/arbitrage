@@ -36,25 +36,36 @@ def show_result(factors, result, only_gain = False):
         pad = "        "
     print("Gain: " + pad + str(round((result[0] * factors[0] - 1) * 100, 2)) + "%")
 
-def create_driver(headless = False):
+def create_driver(headless = False, save_page = True):
     global driver
-    options = Options()
-    if headless:
-        options.headless = True
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    driver = webdriver.Chrome(options = options)
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined })"})
-    driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
+    global window
+    global last_overview
+    if window is None or window == headless:
+        if window is None:
+            link = last_overview
+        else:
+            link = driver.current_url
+            driver.close()
+        options = Options()
+        if headless:
+            options.headless = True
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+        driver = webdriver.Chrome(options = options)
+        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined })"})
+        driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
+        window = not headless
+        if save_page:
+            driver.get(link)
 
 def get_body():
     global driver
     return lxml.html.fromstring(driver.page_source)
 
+last_overview = "https://www.oddschecker.com/tennis"
+window = None
 driver = None
 create_driver()
-last_overview = "https://www.oddschecker.com/tennis"
-driver.get(last_overview)
 
 last_results = []
 last_many = False
@@ -248,7 +259,7 @@ def monitor():
     global last_results
     global driver
     driver.close()
-    create_driver(True)
+    create_driver(True, False)
     lookup = set([])
     for _, _, _, _, _, _, link, _ in last_results:
         lookup.add(link)
@@ -406,7 +417,13 @@ while True:
             values[i] = float(values[i])
         if len(values) == len(last_factors):
             show_values(values)
+    elif command == "bookies":
+        print(get_bookie_names())
     elif command == "e" or command == "exclude":
         exclude = arguments[1:]
+    elif command == "w" or command == "window":
+        create_driver(False)
+    elif command == "h" or command == "hide":
+        create_driver(True)
     else:
         print("Unknown command: " + command)
