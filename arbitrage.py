@@ -450,5 +450,7 @@ while True:
         create_driver(False)
     elif command == "h" or command == "hide":
         create_driver(True)
+    elif command == "g" or command == "go":
+        navigate(" ".join(arguments[1:]))
     else:
         print("Unknown command: " + command)
