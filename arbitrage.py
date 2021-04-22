@@ -298,7 +298,7 @@ def monitor():
         lookup.add(link)
     first = True
     while True:
-        new = list_many(True, 5)
+        new = list_many(True, 10)
         for item in new:
             link = item[6]
             if link not in lookup:
