@@ -158,6 +158,8 @@ def get_bookie_names():
     return names
 
 def list_single(check, ignore_live = False):
+    min_gain = 1.005
+    max_gain = 1.05
     body = get_body()
     results = []
     skip = False
@@ -197,7 +199,7 @@ def list_single(check, ignore_live = False):
                 if links:
                     link = links[0].attrib.get("href")
                 result, gain = arbitrage(factors)
-                if gain > 1 and gain < 1.05 and (not ignore_live or not in_play):
+                if gain >= min_gain and gain <= max_gain and (not ignore_live or not in_play):
                     link = "https://www.oddschecker.com" + link
                     submit = False
                     if check:
@@ -205,7 +207,7 @@ def list_single(check, ignore_live = False):
                         t = get_details()
                         if t is not None:
                             date, _, factors, _, _, result, gain = t
-                            if gain > 1 and gain < 1.05:
+                            if gain >= min_gain and gain <= max_gain:
                                 submit = True
                     else:
                         submit = True
@@ -479,7 +481,15 @@ while True:
     elif command == "bookies":
         print(get_bookie_names())
     elif command == "e" or command == "exclude":
-        exclude = arguments[1:]
+        arguments = arguments[1:]
+        if arguments and arguments[0] == "+":
+            exclude += arguments[1:]
+        elif arguments and arguments[0] == "-":
+            for e in arguments[1:]:
+                exclude.remove(e)
+        else:
+            exclude = arguments
+        print(exclude)
     elif command == "w" or command == "window":
         create_driver(False)
     elif command == "h" or command == "hide":
