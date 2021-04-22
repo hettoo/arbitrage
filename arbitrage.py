@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import sys
+import time
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -22,6 +23,7 @@ def arbitrage(factors):
     return result, result[0] * factors[0]
 
 def show_result(factors, result, only_gain = False):
+    pad = ""
     if not only_gain:
         factors_display = []
         for factor in factors:
@@ -29,22 +31,30 @@ def show_result(factors, result, only_gain = False):
         distribution_display = []
         for x in result:
             distribution_display.append(round(x, 3))
-        print("Factors: " + str(factors_display))
+        print("Factors:      " + str(factors_display))
         print("Distribution: " + str(distribution_display))
-    print("Gain: " + str(round((result[0] * factors[0] - 1) * 100, 2)) + "%")
+        pad = "        "
+    print("Gain: " + pad + str(round((result[0] * factors[0] - 1) * 100, 2)) + "%")
 
-options = Options()
-options.add_experimental_option("excludeSwitches", ["enable-automation"])
-options.add_experimental_option('useAutomationExtension', False)
-driver = webdriver.Chrome(options=options)
-driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined })"})
-driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
-last_overview = "https://www.oddschecker.com/tennis"
-driver.get(last_overview)
+def create_driver(headless = False):
+    global driver
+    options = Options()
+    if headless:
+        options.headless = True
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    driver = webdriver.Chrome(options = options)
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined })"})
+    driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
 
 def get_body():
     global driver
     return lxml.html.fromstring(driver.page_source)
+
+driver = None
+create_driver()
+last_overview = "https://www.oddschecker.com/tennis"
+driver.get(last_overview)
 
 last_results = []
 last_many = False
@@ -57,10 +67,6 @@ exclude = []
 
 def get_details():
     body = get_body()
-    items = body.cssselect(".selTxt")
-    names = []
-    for item in items:
-        names.append(item.text_content())
     items = body.cssselect(".diff-row")
     factors = []
     factor_bookies = []
@@ -89,7 +95,16 @@ def get_details():
         factors.append(best)
         factor_bookies.append(best_bookie)
     result, gain = arbitrage(factors)
-    return names, factors, factor_bookies, result, gain
+    date = body.cssselect(".event .date")
+    if date:
+        date = date[0].text_content()
+    else:
+        date = None
+    items = body.cssselect(".selTxt")
+    names = []
+    for item in items:
+        names.append(item.text_content())
+    return date, names, factors, factor_bookies, result, gain
 
 def get_bookie_names():
     body = get_body()
@@ -144,13 +159,14 @@ def list_single(check, ignore_live = False):
                     submit = False
                     if check:
                         driver.get(link)
-                        _, factors, _, result, gain = get_details()
+                        date, _, factors, _, result, gain = get_details()
                         if gain > 1 and gain < 1.04:
                             submit = True
                     else:
                         submit = True
+                        date = None
                     if submit:
-                        results.append((gain, in_play, names, factors, result, link, title))
+                        results.append((date, gain, in_play, names, factors, result, link, title))
             skip = False
             in_play = False
             factors = []
@@ -164,12 +180,14 @@ def show_results():
     global last_results
     global last_many
     i = len(last_results)
-    for gain, in_play, names, factors, result, _, title in last_results:
+    for date, gain, in_play, names, factors, result, _, title in last_results:
         if i != len(last_results):
             print()
         header = "#" + str(i)
         if last_many and title:
             header += " -- " + title
+        if date is not None:
+            header += " | " + date
         print(header)
         if in_play:
             print("IN PLAY")
@@ -177,7 +195,7 @@ def show_results():
         show_result(factors, result, True)
         i -= 1
 
-def list_many(check):
+def list_many(check, sleep = 0):
     urls = [
         "american-football",
         "australian-rules",
@@ -222,18 +240,23 @@ def list_many(check):
     for url in urls:
         driver.get("https://www.oddschecker.com/" + url)
         results += list_single(check, True)
+        if sleep > 0:
+            time.sleep(sleep)
     return results
 
 def monitor():
     global last_results
+    global driver
+    driver.close()
+    create_driver(True)
     lookup = set([])
-    for _, _, _, _, _, link, _ in last_results:
+    for _, _, _, _, _, _, link, _ in last_results:
         lookup.add(link)
     first = True
     while True:
-        new = list_many(True)
+        new = list_many(True, 5)
         for item in new:
-            link = item[5]
+            link = item[6]
             if link not in lookup:
                 lookup.add(link)
                 if first:
@@ -241,7 +264,8 @@ def monitor():
                 else:
                     print()
                 print(link)
-                print(str(round((item[0] - 1) * 100, 2)) + "%")
+                print(item[0])
+                print(str(round((item[1] - 1) * 100, 2)) + "%")
 
 def cmd_list(arguments):
     global last_results
@@ -254,7 +278,7 @@ def cmd_list(arguments):
         results = list_many(check)
     else:
         results = list_single(check)
-    results.sort(key = lambda x: (0 if x[1] else 1, x[0]))
+    results.sort(key = lambda x: (0 if x[2] else 1, x[1]))
     last_results = results
     last_many = many
     show_results()
@@ -296,12 +320,12 @@ def show_values(values):
         max_gain = round((max(gains) - 1) * 100, 2)
         for i in range(len(values)):
             print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i] + ", " + str(round(last_factors[i], 3)) + " -> " + str(round((gains[i] - 1) * 100, 2)) + "%")
-        print("Total: " + str(total))
+        print("Total:   " + str(total))
         print("Results: " + str(results))
         if min_gain == max_gain:
-            print("Gain: " + str(min_gain) + "%")
+            print("Gain:    " + str(min_gain) + "%")
         else:
-            print("Gain: " + str(min_gain) + "% to " + str(max_gain) + "%")
+            print("Gain:    " + str(min_gain) + "% to " + str(max_gain) + "%")
 
 while True:
     try:
@@ -335,7 +359,9 @@ while True:
     elif command == "d" or command == "details":
         t = get_details()
         if t is not None:
-            names, factors, factor_bookies, result, gain = t
+            date, names, factors, factor_bookies, result, gain = t
+            if date is not None:
+                print(date)
             last_bookies = factor_bookies
             last_bookie_names = get_bookie_names()
             show_bookies()
@@ -346,7 +372,7 @@ while True:
     elif command == "f" or command == "follow":
         index = len(last_results) - int(arguments[1])
         if index >= 0:
-            driver.get(last_results[index][5])
+            driver.get(last_results[index][6])
         else:
             print("No such result")
     elif command == "b" or command == "back":
