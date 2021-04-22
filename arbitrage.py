@@ -36,33 +36,51 @@ def show_result(factors, result, only_gain = False):
         pad = "        "
     print("Gain: " + pad + str(round((result[0] * factors[0] - 1) * 100, 2)) + "%")
 
-def create_driver(headless = False, save_page = True):
+def navigate(url):
+    global needs_load
     global driver
-    global window
-    global last_overview
-    if window is None or window == headless:
-        if window is None:
-            link = last_overview
-        else:
-            link = driver.current_url
-            driver.close()
+    needs_load = None
+    if driver is None:
         options = Options()
-        if headless:
+        if not window:
             options.headless = True
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         driver = webdriver.Chrome(options = options)
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined })"})
         driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.53 Safari/537.36'})
+    driver.get(url)
+
+def check_load():
+    global needs_load
+    if needs_load is not None:
+        navigate(needs_load)
+
+def create_driver(headless = True):
+    global driver
+    global window
+    global last_overview
+    global needs_load
+    if window is None or window == headless:
         window = not headless
-        if save_page:
-            driver.get(link)
+        if needs_load is None:
+            if driver is None:
+                needs_load = last_overview
+            else:
+                needs_load = driver.current_url
+        if driver is not None:
+            driver.close()
+            driver = None
+        if window:
+            check_load()
 
 def get_body():
     global driver
+    check_load()
     return lxml.html.fromstring(driver.page_source)
 
 last_overview = "https://www.oddschecker.com/tennis"
+needs_load = None
 window = None
 driver = None
 create_driver()
@@ -126,7 +144,6 @@ def get_bookie_names():
     return names
 
 def list_single(check, ignore_live = False):
-    global driver
     body = get_body()
     results = []
     skip = False
@@ -169,7 +186,7 @@ def list_single(check, ignore_live = False):
                     link = "https://www.oddschecker.com" + link
                     submit = False
                     if check:
-                        driver.get(link)
+                        navigate(link)
                         date, _, factors, _, result, gain = get_details()
                         if gain > 1 and gain < 1.04:
                             submit = True
@@ -249,7 +266,7 @@ def list_many(check, sleep = 0):
         ]
     results = []
     for url in urls:
-        driver.get("https://www.oddschecker.com/" + url)
+        navigate("https://www.oddschecker.com/" + url)
         results += list_single(check, True)
         if sleep > 0:
             time.sleep(sleep)
@@ -258,8 +275,7 @@ def list_many(check, sleep = 0):
 def monitor():
     global last_results
     global driver
-    driver.close()
-    create_driver(True, False)
+    create_driver(True)
     lookup = set([])
     for _, _, _, _, _, _, link, _ in last_results:
         lookup.add(link)
@@ -282,7 +298,13 @@ def cmd_list(arguments):
     global last_results
     global last_many
     global last_overview
-    last_overview = driver.current_url
+    global needs_load
+    check_load()
+    if needs_load is None:
+        last_overview = driver.current_url
+    else:
+        last_overview = needs_load
+    needs_load = None
     many = "many" in arguments
     check = "check" in arguments
     if many:
@@ -346,7 +368,8 @@ while True:
     try:
         line = input("> ")
     except EOFError:
-        driver.close()
+        if driver is not None:
+            driver.close()
         quit()
     arguments = line.split(" ")
     command = arguments[0]
@@ -387,11 +410,11 @@ while True:
     elif command == "f" or command == "follow":
         index = len(last_results) - int(arguments[1])
         if index >= 0:
-            driver.get(last_results[index][6])
+            navigate(last_results[index][6])
         else:
             print("No such result")
     elif command == "b" or command == "back":
-        driver.get(last_overview)
+        navigate(last_overview)
         show_results()
     elif command == "a" or command == "amount":
         if last_distribution:
