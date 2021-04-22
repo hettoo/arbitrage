@@ -159,7 +159,7 @@ def get_bookie_names():
 
 def list_single(check, ignore_live = False):
     min_gain = 1.005
-    max_gain = 1.05
+    max_gain = 1.045
     body = get_body()
     results = []
     skip = False
