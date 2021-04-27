@@ -368,24 +368,26 @@ def show_values(values):
     if len(values) == len(last_factors):
         total = sum(values)
         results = []
-        gains = []
         expected = 0
+        expected_value = 0
         for i in range(len(values)):
             result = round(values[i] * last_factors[i], 2)
-            gain = result / total
-            gains.append(gain)
+            gain = result / total - 1
             expected += gain * last_distribution[i]
+            expected_value += (result - total) * last_distribution[i]
             results.append(result)
-        min_gain = round((min(gains) - 1) * 100, 2)
-        max_gain = round((max(gains) - 1) * 100, 2)
+        min_gain_value = min(results) - total
+        max_gain_value = max(results) - total
+        min_gain = round(min_gain_value / total * 100, 2)
+        max_gain = round(max_gain_value / total * 100, 2)
         for i in range(len(values)):
             print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i] + ",")
-            print("  return " + str(round(last_factors[i], 3)) + " (" + last_factor_texts[i] + ") -> " + str(results[i]) + " (" + str(round((gains[i] - 1) * 100, 2)) + "% @ " + str(round(last_distribution[i] * 100, 2)) + "%)")
+            print("  return " + str(round(last_factors[i], 3)) + " (" + last_factor_texts[i] + ") -> " + str(results[i]) + " (" + str(round(results[i] - total, 2)) + ", " + str(round((results[i] / total - 1) * 100, 2)) + "% @ " + str(round(last_distribution[i] * 100, 2)) + "%)")
         print("Total bet value: " + str(round(total, 2)))
-        if min_gain == max_gain:
-            print("Gain: " + str(min_gain) + "%")
+        if min_gain_value == max_gain_value:
+            print("Gain: " + str(round(min_gain_value, 2)) +  " (" + str(min_gain) + "%)")
         else:
-            print("Gain: " + str(min_gain) + "% to " + str(max_gain) + "%, expected " + str(round((expected - 1) * 100, 2)) + "%")
+            print("Gain: " + str(round(min_gain_value, 2)) + " (" + str(min_gain) + "%) to " + str(round(max_gain_value, 2)) + " (" + str(max_gain) + "%), expected " + str(round(expected_value, 2)) + " (" + str(round(expected * 100, 2)) + "%)")
 
 def show_amount(total, do_round = False):
     global last_distribution
