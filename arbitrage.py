@@ -380,10 +380,10 @@ def show_values(values):
         max_gain_value = max(results) - total
         min_gain = round(min_gain_value / total * 100, 2)
         max_gain = round(max_gain_value / total * 100, 2)
+        print("Total bet value: " + str(round(total, 2)))
         for i in range(len(values)):
             print("Bet " + str(values[i]) + (" @ " + last_bookies[i] if last_bookies else "") + " on " + names[i] + ",")
             print("  return " + str(round(last_factors[i], 3)) + " (" + last_factor_texts[i] + ") -> " + str(results[i]) + " (" + str(round(results[i] - total, 2)) + ", " + str(round((results[i] / total - 1) * 100, 2)) + "% @ " + str(round(last_distribution[i] * 100, 2)) + "%)")
-        print("Total bet value: " + str(round(total, 2)))
         if min_gain_value == max_gain_value:
             print("Gain: " + str(round(min_gain_value, 2)) +  " (" + str(min_gain) + "%)")
         else:
