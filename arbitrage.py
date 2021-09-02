@@ -419,6 +419,12 @@ while True:
         if len(last_names) != len(last_factors):
             last_names = []
             last_bookies = []
+    elif command == "fee":
+        fee = float(arguments[1])
+        last_factors = [1 + (x - 1) * (1 - fee) for x in last_factors]
+        result, gain = arbitrage(last_factors)
+        show_result(last_factors, result)
+        last_distribution = result
     elif command == "l" or command == "list":
         cmd_list(arguments[1:])
     elif command == "m" or command == "monitor":
